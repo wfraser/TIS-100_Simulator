@@ -63,10 +63,11 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles)
 
     for (int row = 0; row < 3; ++row)
     {
-        for (int col = 0; col < 3; ++col)
+        for (int col = 0; col < 4; ++col)
         {
             INode* cur = &computeNodes[row * 4 + col];
-            INode::Join(cur, Neighbor::RIGHT, &computeNodes[row * 4 + col + 1]);
+            if (col < 3)
+                INode::Join(cur, Neighbor::RIGHT, &computeNodes[row * 4 + col + 1]);
             if (row < 2)
                 INode::Join(cur, Neighbor::DOWN, &computeNodes[(row + 1) * 4 + col]);
         }
