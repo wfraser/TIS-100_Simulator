@@ -229,6 +229,7 @@ void ComputeNode::Assemble(const std::string& assembly)
 
     std::string word;
     bool wordComplete = false;
+    bool inComment = false;
     bool instrComplete = false;
     for (size_t i = 0; i <= assembly.size(); i++)
     {
@@ -260,17 +261,18 @@ void ComputeNode::Assemble(const std::string& assembly)
 
             if ((i > 0) && (assembly[i - 1] == '\n'))
             {
-
                 column = 0;
                 line++;
             }
 
             column++;
 
-            if (c == ' ' || c == '\n')
+            if (c == ' ' || c == '\n' || inComment)
             {
                 if (word.empty() || wordComplete)
                 {
+                    if (c == '\n')
+                        inComment = false;
                     continue;
                 }
                 else
@@ -280,6 +282,11 @@ void ComputeNode::Assemble(const std::string& assembly)
                         instrComplete = true;
                     continue;
                 }
+            }
+            else if (c == '#')
+            {
+                inComment = true;
+                wordComplete = true;
             }
             else if ((c == ':') && (instr.op == Opcode::Indeterminate))
             {
@@ -300,13 +307,31 @@ void ComputeNode::Assemble(const std::string& assembly)
             {
                 if (instr.op == Opcode::Indeterminate)
                 {
-                    ParseOpcode(word, &instr.op);
+                    if (!word.empty())
+                        ParseOpcode(word, &instr.op);
                 }
                 else if (IsOneArgOpcode(instr.op))
                 {
-                    if (instr.args.arg1 == Target::None)
+                    if ((instr.op == Opcode::ADD) || (instr.op == Opcode::SUB))
+                    {
+                        if (TryParseTarget(word, &instr.args.arg1))
+                        {
+                            instr.argsType = InstructionArgsType::Target;
+                        }
+                        else
+                        {
+                            // Must be an integer literal
+                            if (0 == sscanf_s(word.c_str(), "%d", &instr.args.immediate))
+                            {
+                                parse_error("ADD and SUB take either a port or an integer literal as an argument");
+                            }
+                            instr.argsType = InstructionArgsType::Immediate;
+                        }
+                    }
+                    else if (instr.args.arg1 == Target::None)
                     {
                         ParseTarget(word, &instr.args.arg1);
+                        instr.argsType = InstructionArgsType::Target;
                     }
                     else
                     {
@@ -315,6 +340,7 @@ void ComputeNode::Assemble(const std::string& assembly)
                 }
                 else if (IsTwoArgOpcode(instr.op))
                 {
+                    instr.argsType = InstructionArgsType::Target;
                     if (instr.args.arg1 == Target::None)
                     {
                         ParseTarget(word, &instr.args.arg1);
@@ -330,6 +356,7 @@ void ComputeNode::Assemble(const std::string& assembly)
                 }
                 else if (IsJumpOpcode(instr.op))
                 {
+                    instr.argsType = InstructionArgsType::JumpTarget;
                     ParseJumpTarget(std::move(word), instr.op, &instr.args.jumpTarget);
                 }
                 else
@@ -347,7 +374,7 @@ void ComputeNode::Assemble(const std::string& assembly)
             {
                 word.push_back(c);
             }
-            else if (c != '\0')
+            else if (c != '\0' && !inComment)
             {
                 parse_error("invalid character");
             }
@@ -405,9 +432,15 @@ void ComputeNode::Read()
 
     switch (instr.op)
     {
-    case Opcode::MOV:
     case Opcode::ADD:
     case Opcode::SUB:
+        if (instr.argsType == InstructionArgsType::Immediate)
+        {
+            m_temp = instr.args.immediate;
+            break;
+        }
+        // else, fall through
+    case Opcode::MOV:
         readTarget = instr.args.arg1;
         break;
 

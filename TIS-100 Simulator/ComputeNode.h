@@ -55,6 +55,13 @@ public:
     ~JumpTarget();
 };
 
+enum class InstructionArgsType
+{
+    Target,
+    Immediate,
+    JumpTarget
+};
+
 class Instruction
 {
 public:
@@ -63,11 +70,13 @@ public:
     void Clear();
 
     Opcode op;
+    InstructionArgsType argsType;
     union InstructionArgs {
         struct {
             Target arg1;
             Target arg2;
         };
+        int immediate;
         JumpTarget* jumpTarget;
     } args;
 };

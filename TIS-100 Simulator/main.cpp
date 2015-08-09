@@ -8,6 +8,8 @@
 #include <ppl.h>
 #endif
 
+static const size_t PuzzleInputSize = 39;
+
 void ReadSaveFile(const wchar_t* path, std::string programs[12], const std::set<int>& badNodes)
 {
     std::ifstream file(path);
@@ -166,12 +168,53 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles)
     }
 }
 
+static std::vector<int> FunctionGenerator(std::function<bool(size_t, int*)> fn)
+{
+    std::vector<int> values;
+    for (size_t i = 0; true; ++i)
+    {
+        int value;
+        if (fn(i, &value))
+            values.push_back(value);
+        else
+            break;
+    }
+    return values;
+}
+
+static std::vector<int> RandomGenerator(size_t count, int min, int max)
+{
+    std::default_random_engine engine;
+    std::uniform_int_distribution<int> distribution(min, max);
+    return FunctionGenerator([count, &distribution, &engine](size_t i, int* value) -> bool
+    {
+        if (i == count)
+            return false;
+        else
+        {
+            *value = distribution(engine);
+            return true;
+        }
+    });
+}
+
+static std::vector<int> PuzzleInputSimpleGenerator(const Puzzle::IO& input, std::function<int(int)> fn)
+{
+    std::vector<int> values;
+    for (int value : input.data)
+    {
+        values.push_back(fn(value));
+    }
+    return values;
+}
+
 int wmain(int argc, wchar_t** argv)
 {
+    int puzzleNumber;
     const wchar_t* saveFilePath;
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cout << "usage: " << argv[0] << " <save file>\n"
+        std::cout << "usage: " << argv[0] << " <puzzle number> <save file>\n"
             "\n"
             "look for saves in "
             R"(%USERPROFILE%\Documents\my games\TIS-100\<random number>\save)"
@@ -180,37 +223,60 @@ int wmain(int argc, wchar_t** argv)
     }
     else
     {
-        saveFilePath = argv[1];
+        if (0 == swscanf_s(argv[1], L"%u", &puzzleNumber))
+        {
+            std::cout << "invalid puzzle number\n";
+        }
+        saveFilePath = argv[2];
     }
 
     try
     {
-        // hard-coded 00150 puzzle.
-        // TODO: encode the rest
-        // also, wrong number of inputs, so the cycle count doesn't match the game
+        Puzzle puzzle;
 
-        Puzzle puzzle00150;
-        puzzle00150.badNodes = { 1,5,7,9 };
-        puzzle00150.inputs.emplace_back(Puzzle::IO{ 0, Neighbor::UP, {1,2,3,4} });
-        puzzle00150.inputs.emplace_back(Puzzle::IO{ 3, Neighbor::UP, {10,11,12,13} });
-        puzzle00150.outputs.emplace_back(Puzzle::IO{ 8, Neighbor::DOWN, {1,2,3,4} });
-        puzzle00150.outputs.emplace_back(Puzzle::IO{ 11, Neighbor::DOWN, {10,11,12,13} });
+        switch (puzzleNumber)
+        {
+        case 150:
+            // Node arrangement:
+            //
+            //  I        I
+            //  0  x  2  3
+            //  4  x  6  x
+            //  8  x 10 11
+            //  O        O
+            puzzle.badNodes = { 1,5,7,9 };
+            puzzle.inputs.emplace_back(Puzzle::IO{ 0, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+            puzzle.inputs.emplace_back(Puzzle::IO{ 3, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+            puzzle.outputs.emplace_back(Puzzle::IO{ 8, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int value) { return value; }) });
+            puzzle.outputs.emplace_back(Puzzle::IO{ 11, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[1], [](int value) { return value; }) });
+            break;
 
-        // Node arrangement:
-        //
-        //  I        I
-        //  0  x  2  3
-        //  4  x  6  x
-        //  8  x 10 11
-        //  O        O
+        case 10981:
+            // Node arrangement:
+            //
+            //     I
+            //  0  1  2  x
+            //  4  5  6  7
+            //  x  9 10 11
+            //        O
+            puzzle.badNodes = { 3, 8 };
+            puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+            puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int value) { return value * 2; }) });
+            break;
+
+        default:
+            std::cout << "Unknown puzzle " << puzzleNumber << ".\n";
+            return -1;
+        }
+
 
         ReadSaveFile(saveFilePath,
-            puzzle00150.programs,
-            puzzle00150.badNodes);
+            puzzle.programs,
+            puzzle.badNodes);
 
         int cycles = 0;
 
-        bool success = TestPuzzle(puzzle00150, &cycles);
+        bool success = TestPuzzle(puzzle, &cycles);
 
         std::cout << (success ? "success" : "failure") << " in " << cycles << " cycles.\n";
     }
