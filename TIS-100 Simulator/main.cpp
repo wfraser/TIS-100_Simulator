@@ -9,6 +9,7 @@
 #endif
 
 static const size_t PuzzleInputSize = 39;
+static std::default_random_engine g_RandomEngine;
 
 void ReadSaveFile(const wchar_t* path, std::string programs[12], const std::set<int>& badNodes)
 {
@@ -33,7 +34,7 @@ void ReadSaveFile(const wchar_t* path, std::string programs[12], const std::set<
             // this assumes that the nodes are always written out in order.
             ++nodeNumber;
 
-            if (badNodes.find(nodeNumber) != badNodes.end())
+            while (badNodes.find(nodeNumber) != badNodes.end())
                 nodeNumber++;
         }
         else
@@ -194,15 +195,14 @@ static std::vector<int> FunctionGenerator(std::function<bool(size_t, int*)> fn)
 
 static std::vector<int> RandomGenerator(size_t count, int min, int max)
 {
-    std::default_random_engine engine;
     std::uniform_int_distribution<int> distribution(min, max);
-    return FunctionGenerator([count, &distribution, &engine](size_t i, int* value) -> bool
+    return FunctionGenerator([count, &distribution](size_t i, int* value) -> bool
     {
         if (i == count)
             return false;
         else
         {
-            *value = distribution(engine);
+            *value = distribution(g_RandomEngine);
             return true;
         }
     });
@@ -216,6 +216,113 @@ static std::vector<int> PuzzleInputSimpleGenerator(const Puzzle::IO& input, std:
         values.push_back(fn(value));
     }
     return values;
+}
+
+bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *pNodeCount, int* pInstructionCount)
+{
+    Puzzle puzzle;
+
+    switch (puzzleNumber)
+    {
+    case 150:   // Self-Test Diagnostic
+        // Node arrangement:
+        //  I        I
+        //  0  x  2  3
+        //  4  x  6  x
+        //  8  x 10 11
+        //  O        O
+        puzzle.badNodes = { 1,5,7,9 };
+        puzzle.inputs.emplace_back(Puzzle::IO{ 0, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+        puzzle.inputs.emplace_back(Puzzle::IO{ 3, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+        puzzle.outputs.emplace_back(Puzzle::IO{ 8, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int value) { return value; }) });
+        puzzle.outputs.emplace_back(Puzzle::IO{ 11, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[1], [](int value) { return value; }) });
+        break;
+
+    case 10981: // Signal Amplifier
+        // Node arrangement:
+        //     I
+        //  0  1  2  x
+        //  4  5  6  7
+        //  x  9 10 11
+        //        O
+        puzzle.badNodes = { 3, 8 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int value) { return value * 2; }) });
+        break;
+
+    case 20176: // Differential Converter
+        // Node arrangement:
+        //     I  I
+        //  0  1  2  3
+        //  4  5  6  x
+        //  8  9 10 11
+        //     O  O
+        puzzle.badNodes = { 7 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+        puzzle.inputs.push_back(Puzzle::IO{ 2, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+        puzzle.outputs.push_back(Puzzle::IO{ 9, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool
+        {
+            if (i < puzzle.inputs[0].data.size())
+            {
+                *value = puzzle.inputs[0].data[i] - puzzle.inputs[1].data[i];
+                return true;
+            }
+            else
+                return false;
+        }) });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool
+        {
+            if (i < puzzle.inputs[0].data.size())
+            {
+                *value = puzzle.inputs[1].data[i] - puzzle.inputs[0].data[i];
+                return true;
+            }
+            else
+                return false;
+        }) });
+        break;
+
+    case 21340: // Signal Comparator
+        // Node arrangement:
+        //  I
+        //  0  1  2  3
+        //  4  x  x  x
+        //  8  9 10 11
+        //     O  O  O
+        puzzle.badNodes = { 5, 6, 7 };
+        puzzle.inputs.push_back(Puzzle::IO{ 0, Neighbor::UP, RandomGenerator(PuzzleInputSize, -2, 2) });
+        puzzle.outputs.push_back(Puzzle::IO{ 9, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int input)->int {
+            return (input > 0) ? 1 : 0;
+        }) });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int input)->int {
+            return (input == 0) ? 1 : 0;
+        }) });
+        puzzle.outputs.push_back(Puzzle::IO{ 11, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int input)->int {
+            return (input < 0) ? 1 : 0;
+        }) });
+        break;
+
+    case 22280: // Signal Multiplexer
+    case 30647: // Sequence Generator
+    case 31904: // Sequence Counter
+    case 32050: // Signal Edge Detector
+    case 33762: // Interrupt Handler
+    case 40196: // Signal Pattern Detector
+    case 41427: // Sequence Peak Detector
+    case 42656: // Sequence Reverser
+    case 43786: // Signal Multiplier
+                // this is as far as I've gotten in the game :)
+        throw std::exception("That puzzle hasn't been implemented yet.");
+
+    default:
+        throw std::exception("Unknown puzzle number.");
+    }
+
+    ReadSaveFile(saveFilePath,
+        puzzle.programs,
+        puzzle.badNodes);
+
+    return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
 }
 
 int wmain(int argc, wchar_t** argv)
@@ -240,110 +347,30 @@ int wmain(int argc, wchar_t** argv)
         saveFilePath = argv[2];
     }
 
-    try
+    // Use the default seed to produce the same sequence every time (for debugability).
+    g_RandomEngine.seed();
+
+    for (int testRun = 0; testRun < 3; ++testRun)
     {
-        Puzzle puzzle;
+        int cycleCount = 0;
+        int nodeCount = 0; 
+        int instructionCount = 0;
+        bool success;
 
-        switch (puzzleNumber)
+        try
         {
-        case 150:   // Self-Test Diagnostic
-            // Node arrangement:
-            //  I        I
-            //  0  x  2  3
-            //  4  x  6  x
-            //  8  x 10 11
-            //  O        O
-            puzzle.badNodes = { 1,5,7,9 };
-            puzzle.inputs.emplace_back(Puzzle::IO{ 0, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
-            puzzle.inputs.emplace_back(Puzzle::IO{ 3, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
-            puzzle.outputs.emplace_back(Puzzle::IO{ 8, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int value) { return value; }) });
-            puzzle.outputs.emplace_back(Puzzle::IO{ 11, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[1], [](int value) { return value; }) });
-            break;
-
-        case 10981: // Signal Amplifier
-            // Node arrangement:
-            //     I
-            //  0  1  2  x
-            //  4  5  6  7
-            //  x  9 10 11
-            //        O
-            puzzle.badNodes = { 3, 8 };
-            puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
-            puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int value) { return value * 2; }) });
-            break;
-
-        case 20176: // Differential Converter
-            // Node arrangement:
-            //     I  I
-            //  0  1  2  3
-            //  4  5  6  x
-            //  8  9 10 11
-            //     O  O
-            puzzle.badNodes = { 7 };
-            puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
-            puzzle.inputs.push_back(Puzzle::IO{ 2, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
-            puzzle.outputs.push_back(Puzzle::IO{ 9, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool
-            {
-                if (i < puzzle.inputs[0].data.size())
-                {
-                    *value = puzzle.inputs[0].data[i] - puzzle.inputs[1].data[i];
-                    return true;
-                }
-                else
-                    return false;
-            }) });
-            puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool
-            {
-                if (i < puzzle.inputs[0].data.size())
-                {
-                    *value = puzzle.inputs[1].data[i] - puzzle.inputs[0].data[i];
-                    return true;
-                }
-                else
-                    return false;
-            }) });
-            break;
-
-        case 21340: // Signal Comparator
-        case 22280: // Signal Multiplexer
-        case 30647: // Sequence Generator
-        case 31904: // Sequence Counter
-        case 32050: // Signal Edge Detector
-        case 33762: // Interrupt Handler
-        case 40196: // Signal Pattern Detector
-        case 41427: // Sequence Peak Detector
-        case 42656: // Sequence Reverser
-        case 43786: // Signal Multiplier
-                    // this is as far as I've gotten in the game :)
-            std::cout << "That puzzle hasn't been implemented yet.\n";
-            return -1;
-
-        default:
-            std::cout << "Unknown puzzle " << puzzleNumber << ".\n";
-            return -1;
+            success = Test(puzzleNumber, saveFilePath, &cycleCount, &nodeCount, &instructionCount);
+        }
+        catch (std::exception ex)
+        {
+            const char* message = ex.what();
+            std::cout << message << std::endl;
+            return 1;
         }
 
-
-        ReadSaveFile(saveFilePath,
-            puzzle.programs,
-            puzzle.badNodes);
-
-        int cycles = 0;
-        int nodeCount = 0;
-        int instructionCount = 0;
-
-        bool success = TestPuzzle(puzzle, &cycles, &nodeCount, &instructionCount);
-
         std::cout << (success ? "success" : "failure") << " in "
-            << cycles << " cycles, "
+            << cycleCount << " cycles, "
             << nodeCount << " nodes, "
             << instructionCount << " instructions.\n";
     }
-    catch (std::exception ex)
-    {
-        const char* message = ex.what();
-        std::cout << message << std::endl;
-    }
-
-    return 0;
 }
