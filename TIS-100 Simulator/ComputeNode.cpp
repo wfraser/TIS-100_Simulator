@@ -198,7 +198,11 @@ static void ParseJumpTarget(std::string&& str, Opcode op, JumpTarget** ppTarget)
             bool isNumeric = true;
             for (char c : str)
             {
-                if ((c < '0') || (c > '9'))
+                if (c == '-')
+                {
+                    continue;
+                }
+                else if ((c < '0') || (c > '9'))
                 {
                     isNumeric = false;
                     break;
@@ -212,6 +216,8 @@ static void ParseJumpTarget(std::string&& str, Opcode op, JumpTarget** ppTarget)
 
             if (isNumeric)
             {
+                if (str[0] == '-')
+                    value *= -1;
                 *ppTarget = new JumpTarget(value);
             }
             else
@@ -423,7 +429,8 @@ void ComputeNode::Assemble(const std::string& assembly)
             {
                 if ((c >= 'a' && c <= 'z')
                     || ((c >= 'A' && c <= 'Z'))
-                    || ((c >= '0' && c <= '9')))
+                    || ((c >= '0' && c <= '9'))
+                    || (c == '-'))
                 {
                     word.push_back(c);
                 }
