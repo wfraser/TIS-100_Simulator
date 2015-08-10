@@ -231,6 +231,7 @@ static bool IsJumpOpcode(Opcode op)
     switch (op)
     {
     case Opcode::JMP:
+    case Opcode::JEZ:
     case Opcode::JNZ:
     case Opcode::JGZ:
     case Opcode::JLZ:
@@ -656,63 +657,60 @@ void ComputeNode::Step()
 
     Instruction& instr = m_instructions[m_pc];
 
-    if (!IsJumpOpcode(instr.op))
+    bool jumpPredicate = false;
+
+    switch (instr.op)
     {
-        ++m_pc;
+    case Opcode::JMP:
+        jumpPredicate = true;
+        break;
+
+    case Opcode::JEZ:
+        jumpPredicate = (m_acc == 0);
+        break;
+
+    case Opcode::JNZ:
+        jumpPredicate = (m_acc != 0);
+        break;
+
+    case Opcode::JGZ:
+        jumpPredicate = (m_acc > 0);
+        break;
+
+    case Opcode::JLZ:
+        jumpPredicate = (m_acc < 0);
+        break;
+
+    case Opcode::JRO:
+        jumpPredicate = true;
+        break;
+    }
+
+    if (jumpPredicate)
+    {
+        switch (instr.args.jumpTarget->type)
+        {
+        case JumpTargetType::Indeterminate:
+            throw std::exception("indeterminate jump target");
+        case JumpTargetType::Label:
+            m_pc = m_labels.find(*instr.args.jumpTarget->value.label)->second;
+            break;
+        case JumpTargetType::Offset:
+            m_pc += instr.args.jumpTarget->value.offset;
+            break;
+        case JumpTargetType::Target:
+            // offset was loaded by Read()
+            m_pc += m_temp;
+        }
     }
     else
     {
-        bool jumpPredicate;
-
-        switch (instr.op)
-        {
-        case Opcode::JMP:
-            jumpPredicate = true;
-            break;
-
-        case Opcode::JEZ:
-            jumpPredicate = (m_acc == 0);
-            break;
-
-        case Opcode::JNZ:
-            jumpPredicate = (m_acc != 0);
-            break;
-
-        case Opcode::JGZ:
-            jumpPredicate = (m_acc > 0);
-            break;
-
-        case Opcode::JLZ:
-            jumpPredicate = (m_acc < 0);
-            break;
-
-        case Opcode::JRO:
-            jumpPredicate = true;
-            break;
-        }
-
-        if (jumpPredicate)
-        {
-            switch (instr.args.jumpTarget->type)
-            {
-            case JumpTargetType::Indeterminate:
-                throw std::exception("indeterminate jump target");
-            case JumpTargetType::Label:
-                m_pc = m_labels.find(*instr.args.jumpTarget->value.label)->second;
-                break;
-            case JumpTargetType::Offset:
-                m_pc += instr.args.jumpTarget->value.offset;
-                break;
-            case JumpTargetType::Target:
-                // offset was loaded by Read()
-                m_pc += m_temp;
-            }
-        }
+        ++m_pc;
     }
 
     if (m_pc >= m_instructions.size())
     {
-        if (instr.op == Opcode::JRO)
+        if ((instr.op == Opcode::JRO) && jumpPredicate)
         {
             // if you JRO to an out-of-range instruction, the pc goes to the last instruction.
             m_pc = m_instructions.size() - 1;
