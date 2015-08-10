@@ -246,9 +246,8 @@ int wmain(int argc, wchar_t** argv)
 
         switch (puzzleNumber)
         {
-        case 150:
+        case 150:   // Self-Test Diagnostic
             // Node arrangement:
-            //
             //  I        I
             //  0  x  2  3
             //  4  x  6  x
@@ -261,9 +260,8 @@ int wmain(int argc, wchar_t** argv)
             puzzle.outputs.emplace_back(Puzzle::IO{ 11, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[1], [](int value) { return value; }) });
             break;
 
-        case 10981:
+        case 10981: // Signal Amplifier
             // Node arrangement:
-            //
             //     I
             //  0  1  2  x
             //  4  5  6  7
@@ -273,6 +271,52 @@ int wmain(int argc, wchar_t** argv)
             puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
             puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int value) { return value * 2; }) });
             break;
+
+        case 20176: // Differential Converter
+            // Node arrangement:
+            //     I  I
+            //  0  1  2  3
+            //  4  5  6  x
+            //  8  9 10 11
+            //     O  O
+            puzzle.badNodes = { 7 };
+            puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+            puzzle.inputs.push_back(Puzzle::IO{ 2, Neighbor::UP, RandomGenerator(PuzzleInputSize, 10, 100) });
+            puzzle.outputs.push_back(Puzzle::IO{ 9, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool
+            {
+                if (i < puzzle.inputs[0].data.size())
+                {
+                    *value = puzzle.inputs[0].data[i] - puzzle.inputs[1].data[i];
+                    return true;
+                }
+                else
+                    return false;
+            }) });
+            puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool
+            {
+                if (i < puzzle.inputs[0].data.size())
+                {
+                    *value = puzzle.inputs[1].data[i] - puzzle.inputs[0].data[i];
+                    return true;
+                }
+                else
+                    return false;
+            }) });
+            break;
+
+        case 21340: // Signal Comparator
+        case 22280: // Signal Multiplexer
+        case 30647: // Sequence Generator
+        case 31904: // Sequence Counter
+        case 32050: // Signal Edge Detector
+        case 33762: // Interrupt Handler
+        case 40196: // Signal Pattern Detector
+        case 41427: // Sequence Peak Detector
+        case 42656: // Sequence Reverser
+        case 43786: // Signal Multiplier
+                    // this is as far as I've gotten in the game :)
+            std::cout << "That puzzle hasn't been implemented yet.\n";
+            return -1;
 
         default:
             std::cout << "Unknown puzzle " << puzzleNumber << ".\n";
