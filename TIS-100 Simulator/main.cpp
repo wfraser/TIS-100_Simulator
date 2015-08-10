@@ -313,6 +313,57 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 30647: // Sequence Generator
+        // Node arrangement:
+        //     I  I
+        //  0  1  2  3
+        //  4  5  6  7
+        //  8  x 10 11
+        //        O
+        puzzle.badNodes = { 9 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize / 3, 10, 100) });
+        puzzle.inputs.push_back(Puzzle::IO{ 2, Neighbor::UP, RandomGenerator(PuzzleInputSize / 3, 10, 100) });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool {
+            enum class State
+            {
+                Lesser,
+                Greater,
+                Zero
+            };
+
+            static struct
+            {
+                size_t pos;
+                State state;
+            } s_state;
+
+            if (i == 0)
+            {
+                s_state.pos = 0;
+                s_state.state = State::Lesser;
+            }
+
+            if (puzzle.inputs[0].data.size() == s_state.pos)
+                return false;
+
+            switch (s_state.state)
+            {
+            case State::Lesser:
+                *value = std::min(puzzle.inputs[0].data[s_state.pos], puzzle.inputs[1].data[s_state.pos]);
+                s_state.state = State::Greater;
+                break;
+            case State::Greater:
+                *value = std::max(puzzle.inputs[0].data[s_state.pos], puzzle.inputs[1].data[s_state.pos]);
+                s_state.state = State::Zero;
+                break;
+            case State::Zero:
+                *value = 0;
+                ++s_state.pos;
+                s_state.state = State::Lesser;
+            }
+            return true;
+        }) });
+        break;
+
     case 31904: // Sequence Counter
     case 32050: // Signal Edge Detector
     case 33762: // Interrupt Handler
