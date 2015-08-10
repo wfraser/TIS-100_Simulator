@@ -110,6 +110,7 @@ public:
     ComputeNode();
 
     void Assemble(const std::string& assembly);
+    int InstructionCount();
 
     virtual void SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO);
     virtual void Initialize();

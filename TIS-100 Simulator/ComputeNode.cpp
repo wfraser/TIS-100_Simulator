@@ -398,6 +398,11 @@ void ComputeNode::Assemble(const std::string& assembly)
     }
 }
 
+int ComputeNode::InstructionCount()
+{
+    return m_instructions.size();
+}
+
 void ComputeNode::SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO)
 {
     m_neighbors[static_cast<size_t>(direction)] = spIO;

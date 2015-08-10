@@ -59,7 +59,7 @@ public:
     std::set<int> badNodes;
 };
 
-bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles)
+bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pInstructionCount)
 {
     ComputeNode computeNodes[12];
 
@@ -109,6 +109,16 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles)
 
     for (INode* node : nodes)
         node->Initialize();
+
+    for (size_t i = 0; i < _countof(computeNodes); ++i)
+    {
+        int instructions = computeNodes[i].InstructionCount();
+        if (instructions > 0)
+        {
+            (*pInstructionCount) += instructions;
+            ++(*pNodeCount);
+        }
+    }
 
     *pNumCycles = 0;
     for (;;)
@@ -275,10 +285,15 @@ int wmain(int argc, wchar_t** argv)
             puzzle.badNodes);
 
         int cycles = 0;
+        int nodeCount = 0;
+        int instructionCount = 0;
 
-        bool success = TestPuzzle(puzzle, &cycles);
+        bool success = TestPuzzle(puzzle, &cycles, &nodeCount, &instructionCount);
 
-        std::cout << (success ? "success" : "failure") << " in " << cycles << " cycles.\n";
+        std::cout << (success ? "success" : "failure") << " in "
+            << cycles << " cycles, "
+            << nodeCount << " nodes, "
+            << instructionCount << " instructions.\n";
     }
     catch (std::exception ex)
     {
