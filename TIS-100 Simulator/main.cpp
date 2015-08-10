@@ -342,6 +342,78 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 31904: // Sequence Counter
+        // Node arrangement:
+        //     I
+        //  0  1  2  x
+        //  4  5  6  7
+        //  8  9 10 11
+        //     O  O
+        puzzle.badNodes = { 3 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, FunctionGenerator([](size_t i, int* value)->bool {
+            if (i >= PuzzleInputSize)
+                return false;
+
+            std::uniform_int_distribution<int> zeroOdds(0, 5);
+            if (zeroOdds(g_RandomEngine) == 0)
+            {
+                *value = 0;
+            }
+            else
+            {
+                *value = std::uniform_int_distribution<int>(10, 100)(g_RandomEngine);
+            }
+            return true;
+        }) });
+        puzzle.outputs.push_back(Puzzle::IO{ 9, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool {
+            size_t inputSize = puzzle.inputs[0].data.size();
+
+            size_t seek = 0;
+            while (i > 0)
+            {
+                if (seek == inputSize)
+                    return false;
+
+                if (puzzle.inputs[0].data[seek] == 0)
+                    --i;
+                ++seek;
+            }
+
+            *value = 0;
+            for (int n; seek < inputSize && (n = puzzle.inputs[0].data[seek], n != 0); ++seek)
+            {
+                *value += n;
+            }
+            if (seek < inputSize)
+                return true;
+            else
+                return false;
+        }) });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool {
+            size_t inputSize = puzzle.inputs[0].data.size();
+
+            size_t seek = 0;
+            while (i > 0)
+            {
+                if (seek == inputSize)
+                    return false;
+
+                if (puzzle.inputs[0].data[seek] == 0)
+                    --i;
+                ++seek;
+            }
+
+            *value = 0;
+            for (int n; seek < inputSize && (n = puzzle.inputs[0].data[seek], n != 0); ++seek)
+            {
+                ++(*value);
+            }
+            if (seek < inputSize)
+                return true;
+            else
+                return false;
+        }) });
+        break;
+
     case 32050: // Signal Edge Detector
     case 33762: // Interrupt Handler
     case 40196: // Signal Pattern Detector
