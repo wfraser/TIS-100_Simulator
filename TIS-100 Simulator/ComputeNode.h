@@ -52,6 +52,8 @@ public:
     JumpTarget(Target target);
     JumpTarget(int offset);
     JumpTarget(std::string&& label);
+    JumpTarget(const JumpTarget& other);
+    JumpTarget(JumpTarget&& other);
     ~JumpTarget();
 };
 
@@ -66,6 +68,8 @@ class Instruction
 {
 public:
     Instruction();
+    Instruction(const Instruction& other);
+    Instruction(Instruction&& other);
     ~Instruction();
     void Clear();
 
@@ -73,10 +77,12 @@ public:
     InstructionArgsType argsType;
     union InstructionArgs {
         struct {
-            Target arg1;
+            union {
+                Target target;
+                int immediate;
+            } arg1;
             Target arg2;
         };
-        int immediate;
         JumpTarget* jumpTarget;
     } args;
 };

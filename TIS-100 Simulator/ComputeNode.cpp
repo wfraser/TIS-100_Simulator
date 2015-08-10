@@ -25,6 +25,24 @@ JumpTarget::JumpTarget(std::string&& label)
     value.label = new std::string(label);
 }
 
+JumpTarget::JumpTarget(const JumpTarget& other)
+    : type(other.type)
+    , value(other.value)
+{
+    if (type == JumpTargetType::Label)
+        value.label = new std::string(*other.value.label);
+}
+
+JumpTarget::JumpTarget(JumpTarget&& other)
+    : type(other.type)
+    , value(other.value)
+{
+    if (type == JumpTargetType::Label)
+    {
+        other.value.label = nullptr;
+    }
+}
+
 JumpTarget::~JumpTarget()
 {
     if (type == JumpTargetType::Label)
@@ -33,8 +51,29 @@ JumpTarget::~JumpTarget()
 
 Instruction::Instruction()
     : op(Opcode::Indeterminate)
+    , argsType(InstructionArgsType::Target)
 {
-    args = {};
+    args = {}; // targets are set to None
+}
+
+Instruction::Instruction(const Instruction& other)
+    : op(other.op)
+    , argsType(other.argsType)
+    , args(other.args)
+{
+    if (argsType == InstructionArgsType::JumpTarget)
+        args.jumpTarget = new JumpTarget(*other.args.jumpTarget);
+}
+
+Instruction::Instruction(Instruction&& other)
+    : op(other.op)
+    , argsType(other.argsType)
+    , args(other.args)
+{
+    if (argsType == InstructionArgsType::JumpTarget)
+    {
+        other.args.jumpTarget = nullptr;
+    }
 }
 
 Instruction::~Instruction()
@@ -54,6 +93,7 @@ Instruction::~Instruction()
 void Instruction::Clear()
 {
     op = Opcode::Indeterminate;
+    argsType = InstructionArgsType::Target;
     args = {};
 }
 
@@ -125,6 +165,22 @@ static void ParseTarget(const std::string& str, Target* pTarget)
 {
     if (!TryParseTarget(str, pTarget))
         throw std::exception("unrecognized target");
+}
+
+static void ParseTargetOrLiteral(const std::string& str, Target* pTarget, int* pImmediate, InstructionArgsType* pType)
+{
+    if (TryParseTarget(str, pTarget))
+    {
+        *pType = InstructionArgsType::Target;
+    }
+    else
+    {
+        if (0 == sscanf_s(str.c_str(), "%d", pImmediate))
+        {
+            throw std::exception("expected a port, register or integer literal");
+        }
+        *pType = InstructionArgsType::Immediate;
+    }
 }
 
 static void ParseJumpTarget(std::string&& str, Opcode op, JumpTarget** ppTarget)
@@ -267,19 +323,25 @@ void ComputeNode::Assemble(const std::string& assembly)
 
             column++;
 
-            if (c == ' ' || c == '\n' || inComment)
+            if (inComment)
+            {
+                if (c == '\n')
+                    inComment = false;
+                continue;
+            }
+            if (c == ' ' || c == '\n')
             {
                 if (word.empty() || wordComplete)
                 {
-                    if (c == '\n')
-                        inComment = false;
                     continue;
                 }
                 else
                 {
                     wordComplete = true;
                     if (c == '\n')
+                    {
                         instrComplete = true;
+                    }
                     continue;
                 }
             }
@@ -287,6 +349,7 @@ void ComputeNode::Assemble(const std::string& assembly)
             {
                 inComment = true;
                 wordComplete = true;
+                instrComplete = true;
             }
             else if ((c == ':') && (instr.op == Opcode::Indeterminate))
             {
@@ -297,7 +360,8 @@ void ComputeNode::Assemble(const std::string& assembly)
             }
             else if ((c == ',')
                 && IsTwoArgOpcode(instr.op)
-                && (instr.args.arg1 == Target::None))
+                && (instr.argsType == InstructionArgsType::Target)
+                && (instr.args.arg1.target == Target::None))
             {
                 wordComplete = true;
                 continue;
@@ -312,26 +376,10 @@ void ComputeNode::Assemble(const std::string& assembly)
                 }
                 else if (IsOneArgOpcode(instr.op))
                 {
-                    if ((instr.op == Opcode::ADD) || (instr.op == Opcode::SUB))
+                    if ((instr.argsType == InstructionArgsType::Target)
+                        && (instr.args.arg1.target == Target::None))
                     {
-                        if (TryParseTarget(word, &instr.args.arg1))
-                        {
-                            instr.argsType = InstructionArgsType::Target;
-                        }
-                        else
-                        {
-                            // Must be an integer literal
-                            if (0 == sscanf_s(word.c_str(), "%d", &instr.args.immediate))
-                            {
-                                parse_error("ADD and SUB take either a port or an integer literal as an argument");
-                            }
-                            instr.argsType = InstructionArgsType::Immediate;
-                        }
-                    }
-                    else if (instr.args.arg1 == Target::None)
-                    {
-                        ParseTarget(word, &instr.args.arg1);
-                        instr.argsType = InstructionArgsType::Target;
+                        ParseTargetOrLiteral(word, &instr.args.arg1.target, &instr.args.arg1.immediate, &instr.argsType);
                     }
                     else
                     {
@@ -340,13 +388,15 @@ void ComputeNode::Assemble(const std::string& assembly)
                 }
                 else if (IsTwoArgOpcode(instr.op))
                 {
-                    instr.argsType = InstructionArgsType::Target;
-                    if (instr.args.arg1 == Target::None)
+                    if ((instr.argsType == InstructionArgsType::Target)
+                        && (instr.args.arg1.target == Target::None))
                     {
-                        ParseTarget(word, &instr.args.arg1);
+                        // The source can be a target or a literal.
+                        ParseTargetOrLiteral(word, &instr.args.arg1.target, &instr.args.arg1.immediate, &instr.argsType);
                     }
                     else if (instr.args.arg2 == Target::None)
                     {
+                        // The destination can only be a target.
                         ParseTarget(word, &instr.args.arg2);
                     }
                     else
@@ -368,20 +418,24 @@ void ComputeNode::Assemble(const std::string& assembly)
                 wordComplete = false;
             }
 
-            if ((c >= 'a' && c <= 'z')
-                || ((c >= 'A' && c <= 'Z'))
-                || ((c >= '0' && c <= '9')))
+            if (!inComment)
             {
-                word.push_back(c);
-            }
-            else if (c != '\0' && !inComment)
-            {
-                parse_error("invalid character");
+                if ((c >= 'a' && c <= 'z')
+                    || ((c >= 'A' && c <= 'Z'))
+                    || ((c >= '0' && c <= '9')))
+                {
+                    word.push_back(c);
+                }
+                else if (c != '\0')
+                {
+                    parse_error("invalid character");
+                }
             }
 
             if (instrComplete)
             {
-                m_instructions.push_back(instr);
+                if (instr.op != Opcode::Indeterminate)
+                    m_instructions.push_back(std::move(instr));
                 instr.Clear();
                 instrComplete = false;
             }
@@ -437,16 +491,13 @@ void ComputeNode::Read()
 
     switch (instr.op)
     {
+    case Opcode::MOV:
     case Opcode::ADD:
     case Opcode::SUB:
         if (instr.argsType == InstructionArgsType::Immediate)
-        {
-            m_temp = instr.args.immediate;
-            break;
-        }
-        // else, fall through
-    case Opcode::MOV:
-        readTarget = instr.args.arg1;
+            m_temp = instr.args.arg1.immediate;
+        else
+            readTarget = instr.args.arg1.target;
         break;
 
     case Opcode::JRO:
