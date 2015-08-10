@@ -4,10 +4,6 @@
 #include "OutputNode.h"
 #include "ComputeNode.h"
 
-#ifdef PARALLEL
-#include <ppl.h>
-#endif
-
 static const size_t PuzzleInputSize = 39;
 static std::default_random_engine g_RandomEngine;
 
@@ -144,8 +140,6 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
 
         ++(*pNumCycles);
 
-#ifndef PARALLEL
-
         for (auto& node : nodes)
             node->Read();
 
@@ -157,25 +151,6 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
 
         for (auto& node : nodes)
             node->Step();
-
-#else
-
-        concurrency::parallel_for_each(nodes.begin(), nodes.end(), [](INode* node) {
-            node->Read();
-        });
-
-        concurrency::parallel_for_each(nodes.begin(), nodes.end(), [](INode* node) {
-            node->Compute();
-        });
-
-        concurrency::parallel_for_each(nodes.begin(), nodes.end(), [](INode* node) {
-            node->Write();
-        });
-
-        concurrency::parallel_for_each(nodes.begin(), nodes.end(), [](INode* node) {
-            node->Step();
-        });
-#endif
     }
 }
 
