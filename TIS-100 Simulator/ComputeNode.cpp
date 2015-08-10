@@ -195,29 +195,10 @@ static void ParseJumpTarget(std::string&& str, Opcode op, JumpTarget** ppTarget)
         else
         {
             int value = 0;
-            bool isNumeric = true;
-            for (char c : str)
-            {
-                if (c == '-')
-                {
-                    continue;
-                }
-                else if ((c < '0') || (c > '9'))
-                {
-                    isNumeric = false;
-                    break;
-                }
-                else
-                {
-                    value *= 10;
-                    value += (c - '0');
-                }
-            }
+            bool isNumeric = (1 == sscanf_s(str.c_str(), "%d", &value));
 
             if (isNumeric)
             {
-                if (str[0] == '-')
-                    value *= -1;
                 *ppTarget = new JumpTarget(value);
             }
             else
