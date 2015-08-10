@@ -27,7 +27,8 @@ enum class Target
     DOWN,
     LEFT,
     RIGHT,
-    ANY
+    ANY,
+    LAST
 };
 
 enum class JumpTargetType
@@ -108,6 +109,7 @@ private:
     int m_acc;
     int m_bak;
     int m_temp;
+    Target m_last;
     std::vector<Instruction> m_instructions;
     std::unordered_map<std::string, size_t> m_labels;
     std::shared_ptr<IOChannel> m_neighbors[static_cast<size_t>(Neighbor::COUNT)];

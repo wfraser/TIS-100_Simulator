@@ -11,6 +11,14 @@ IOChannel::IOChannel(INode * a, INode * b)
 
 void IOChannel::Write(INode * sender, int value)
 {
+#if 0
+    if (m_sender != nullptr && m_sender != sender)
+    {
+        // Write conflict.
+        __debugbreak();
+    }
+#endif
+
     m_sender = sender;
     m_value = value;
 }
@@ -25,4 +33,12 @@ bool IOChannel::Read(INode * receiver, int * pValue)
         return true;
     }
     return false;
+}
+
+void IOChannel::CancelWrite(INode* sender)
+{
+    if (m_sender == sender)
+    {
+        m_sender = nullptr;
+    }
 }

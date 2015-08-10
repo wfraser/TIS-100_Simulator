@@ -13,4 +13,5 @@ public:
 
     void Write(INode* sender, int value);
     bool Read(INode* receiver, int* pValue);
+    void CancelWrite(INode* sender);
 };

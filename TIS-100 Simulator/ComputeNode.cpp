@@ -123,7 +123,8 @@ static std::unordered_map<std::string, Target> s_targets = {
     TGT(DOWN),
     TGT(LEFT),
     TGT(RIGHT),
-    TGT(ANY)
+    TGT(ANY),
+    TGT(LAST)
 #undef TGT
 };
 
@@ -260,6 +261,7 @@ ComputeNode::ComputeNode()
     , m_pc(0)
     , m_acc(0)
     , m_bak(0)
+    , m_last(Target::None)
 {
 }
 
@@ -462,6 +464,9 @@ void ComputeNode::Initialize()
         m_state = State::Unprogrammed;
     }
     m_pc = 0;
+    m_acc = 0;
+    m_bak = 0;
+    m_last = Target::None;
 }
 
 std::shared_ptr<IOChannel>& ComputeNode::IO(Target target)
@@ -525,6 +530,7 @@ void ComputeNode::Read()
     case Target::DOWN:
     case Target::LEFT:
     case Target::RIGHT:
+port_read:
     {
         m_state = State::Read;
         std::shared_ptr<IOChannel>& spIO = IO(readTarget);
@@ -536,7 +542,32 @@ void ComputeNode::Read()
     break;
 
     case Target::ANY:
-        throw std::exception("not implemented");
+        m_state = State::Read;
+        for (auto target : { Target::LEFT, Target::RIGHT, Target::UP, Target::DOWN }) // this is the order used in the game
+        {
+            std::shared_ptr<IOChannel>& spIO = IO(target);
+            if ((spIO != nullptr) && spIO->Read(this, &m_temp))
+            {
+                m_state = State::Run;
+                m_last = target;
+                break;
+            }
+        }
+        break;
+
+    case Target::LAST:
+        if (m_last == Target::None)
+        {
+            // The manual says this is "implementation-defined behavior".
+            // The game treats this as reading from NIL.
+            m_temp = 0;
+            break;
+        }
+        else
+        {
+            readTarget = m_last;
+            goto port_read;
+        }
     }
 }
 
@@ -599,6 +630,7 @@ void ComputeNode::Write()
     case Target::DOWN:
     case Target::LEFT:
     case Target::RIGHT:
+port_write:
     {
         m_state = State::Write;
         std::shared_ptr<IOChannel>& spIO = IO(writeTarget);
@@ -610,7 +642,32 @@ void ComputeNode::Write()
     break;
 
     case Target::ANY:
-        throw std::exception("not implemented");
+        m_state = State::Write;
+        // In the game, if multiple neighbors read at the same cycle, the one with the lowest node
+        // number gets the value and the others do not.
+        // This will pose a compatibility problem if we don't execute the nodes in the same order.
+        for (Target target : { Target::UP, Target::DOWN, Target::LEFT, Target::RIGHT })
+        {
+            std::shared_ptr<IOChannel> spIO = IO(target);
+            if (spIO != nullptr)
+            {
+                spIO->Write(this, m_temp);
+            }
+        }
+        break;
+
+    case Target::LAST:
+        if (m_last == Target::None)
+        {
+            // The manual says this is "implementation-defined behavior".
+            // The game treats this as writing to NIL.
+            break;
+        }
+        else
+        {
+            writeTarget = m_last;
+            goto port_write;
+        }
     }
 }
 
@@ -620,6 +677,20 @@ void ComputeNode::WriteComplete()
     {
     case State::Write:
         m_state = State::WriteComplete;
+        if ((m_instructions[m_pc].op == Opcode::MOV)
+            && m_instructions[m_pc].args.arg2 == Target::ANY)
+        {
+            // Cancel the other writes.
+            // This is not thread-safe, and so assumes the nodes are executed sequentially.
+            for (Target target : { Target::UP, Target::DOWN, Target::LEFT, Target::RIGHT })
+            {
+                std::shared_ptr<IOChannel> spIO = IO(target);
+                if (spIO != nullptr)
+                {
+                    spIO->CancelWrite(this);
+                }
+            }
+        }
         break;
     default:
         throw std::exception("unexpected WriteComplete");
