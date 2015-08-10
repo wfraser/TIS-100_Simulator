@@ -323,42 +323,19 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize / 3, 10, 100) });
         puzzle.inputs.push_back(Puzzle::IO{ 2, Neighbor::UP, RandomGenerator(PuzzleInputSize / 3, 10, 100) });
         puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool {
-            enum class State
-            {
-                Lesser,
-                Greater,
-                Zero
-            };
-
-            static struct
-            {
-                size_t pos;
-                State state;
-            } s_state;
-
-            if (i == 0)
-            {
-                s_state.pos = 0;
-                s_state.state = State::Lesser;
-            }
-
-            if (puzzle.inputs[0].data.size() == s_state.pos)
+            if (i / 3 >= puzzle.inputs[0].data.size())
                 return false;
 
-            switch (s_state.state)
+            switch (i % 3)
             {
-            case State::Lesser:
-                *value = std::min(puzzle.inputs[0].data[s_state.pos], puzzle.inputs[1].data[s_state.pos]);
-                s_state.state = State::Greater;
+            case 0:
+                *value = std::min(puzzle.inputs[0].data[i / 3], puzzle.inputs[1].data[i / 3]);
                 break;
-            case State::Greater:
-                *value = std::max(puzzle.inputs[0].data[s_state.pos], puzzle.inputs[1].data[s_state.pos]);
-                s_state.state = State::Zero;
+            case 1:
+                *value = std::max(puzzle.inputs[0].data[i / 3], puzzle.inputs[1].data[i / 3]);
                 break;
-            case State::Zero:
+            case 2:
                 *value = 0;
-                ++s_state.pos;
-                s_state.state = State::Lesser;
             }
             return true;
         }) });
