@@ -303,6 +303,40 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 22280: // Signal Multiplexer
+        // Node arrangement:
+        //     I  I  I
+        //  0  1  2  3
+        //  4  5  6  7
+        //  x  9 10 11
+        //        O
+        puzzle.badNodes = { 8 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, -30, 0) });
+        puzzle.inputs.push_back(Puzzle::IO{ 2, Neighbor::UP, RandomGenerator(PuzzleInputSize, -1, 1) });
+        puzzle.inputs.push_back(Puzzle::IO{ 3, Neighbor::UP, RandomGenerator(PuzzleInputSize, 0, 30) });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool {
+            if (i < PuzzleInputSize)
+            {
+                switch (puzzle.inputs[1].data[i])
+                {
+                case -1:
+                    *value = puzzle.inputs[0].data[i];
+                    break;
+                case 0:
+                    *value = puzzle.inputs[0].data[i] + puzzle.inputs[2].data[i];
+                    break;
+                case 1:
+                    *value = puzzle.inputs[2].data[i];
+                    break;
+                default:
+                    throw std::exception("invalid input");
+                }
+                return true;
+            }
+            else
+                return false;
+        }) });
+        break;
+
     case 30647: // Sequence Generator
     case 31904: // Sequence Counter
     case 32050: // Signal Edge Detector
