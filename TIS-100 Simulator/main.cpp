@@ -415,6 +415,36 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 32050: // Signal Edge Detector
+        // Node arrangement:
+        //     I
+        //  0  1  2  3
+        //  4  5  6  7
+        //  x  9 10 11
+        //        O
+        puzzle.badNodes = { 8 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, -20, 40) });
+        puzzle.inputs[0].data[0] = 0;   // alter the first to be zero
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool {
+            if (i == 0)
+            {
+                *value = 0;
+                return true;
+            }
+            else if (i < puzzle.inputs[0].data.size())
+            {
+                int a = puzzle.inputs[0].data[i - 1];
+                int b = puzzle.inputs[0].data[i];
+                *value = (std::abs(a - b) >= 10) ? 1 : 0;
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+
+        }) });
+        break;
+
     case 33762: // Interrupt Handler
     case 40196: // Signal Pattern Detector
     case 41427: // Sequence Peak Detector
