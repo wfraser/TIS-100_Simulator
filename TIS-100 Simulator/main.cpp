@@ -349,69 +349,27 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         //  8  9 10 11
         //     O  O
         puzzle.badNodes = { 3 };
-        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, FunctionGenerator([](size_t i, int* value)->bool {
-            if (i >= PuzzleInputSize)
-                return false;
-
-            std::uniform_int_distribution<int> zeroOdds(0, 5);
-            if (zeroOdds(g_RandomEngine) == 0)
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {} });
+        puzzle.outputs.push_back(Puzzle::IO{ 9, Neighbor::DOWN, {0} });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, {0} });
+        for (size_t i = 0; i < PuzzleInputSize; ++i)
+        {
+            if (0 == std::uniform_int_distribution<int>(0, 5)(g_RandomEngine))
             {
-                *value = 0;
+                puzzle.inputs[0].data.push_back(0);
+                puzzle.outputs[0].data.push_back(0);
+                puzzle.outputs[1].data.push_back(0);
             }
             else
             {
-                *value = std::uniform_int_distribution<int>(10, 100)(g_RandomEngine);
+                int value = std::uniform_int_distribution<int>(10, 100)(g_RandomEngine);
+                puzzle.inputs[0].data.push_back(value);
+                puzzle.outputs[0].data.back() += value;
+                puzzle.outputs[1].data.back() += 1;
             }
-            return true;
-        }) });
-        puzzle.outputs.push_back(Puzzle::IO{ 9, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool {
-            size_t inputSize = puzzle.inputs[0].data.size();
-
-            size_t seek = 0;
-            while (i > 0)
-            {
-                if (seek == inputSize)
-                    return false;
-
-                if (puzzle.inputs[0].data[seek] == 0)
-                    --i;
-                ++seek;
-            }
-
-            *value = 0;
-            for (int n; seek < inputSize && (n = puzzle.inputs[0].data[seek], n != 0); ++seek)
-            {
-                *value += n;
-            }
-            if (seek < inputSize)
-                return true;
-            else
-                return false;
-        }) });
-        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool {
-            size_t inputSize = puzzle.inputs[0].data.size();
-
-            size_t seek = 0;
-            while (i > 0)
-            {
-                if (seek == inputSize)
-                    return false;
-
-                if (puzzle.inputs[0].data[seek] == 0)
-                    --i;
-                ++seek;
-            }
-
-            *value = 0;
-            for (int n; seek < inputSize && (n = puzzle.inputs[0].data[seek], n != 0); ++seek)
-            {
-                ++(*value);
-            }
-            if (seek < inputSize)
-                return true;
-            else
-                return false;
-        }) });
+        }
+        puzzle.outputs[0].data.pop_back();
+        puzzle.outputs[1].data.pop_back();
         break;
 
     case 32050: // Signal Edge Detector
@@ -446,7 +404,113 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 33762: // Interrupt Handler
+        // Node arrangement:
+        //  I  I  I  I
+        //  0  1  2  3
+        //  4  5  6  7
+        //  x  9 10 11
+        //        O
+        puzzle.badNodes = { 8 };
+        puzzle.inputs.push_back(Puzzle::IO{ 0, Neighbor::UP, {} });
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {} });
+        puzzle.inputs.push_back(Puzzle::IO{ 2, Neighbor::UP, {} });
+        puzzle.inputs.push_back(Puzzle::IO{ 3, Neighbor::UP, {} });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, {} });
+        for (size_t i = 0, which = 0; i < PuzzleInputSize; ++i)
+        {
+            for (size_t j = 0; j < 4; ++j)
+            {
+                int value = 0;
+                if (i > 0)
+                {
+                    if (j + 1 == which)
+                    {
+                        // This input is selected to change.
+                        if (puzzle.inputs[j].data.back() == 1)
+                        {
+                            // This input has a high value; set it low.
+                            value = 0;
+
+                            // Output should be 0 because no positive edge happened.
+                            which = 0;
+                        }
+                        else
+                        {
+                            // Positive edge.
+                            value = 1;
+                        }
+                    }
+                    else
+                    {
+                        // Channel keeps its last value.
+                        value = puzzle.inputs[j].data.back();
+                    }
+                }
+
+                puzzle.inputs[j].data.push_back(value);
+            }
+
+            puzzle.outputs[0].data.push_back(which);
+
+            which = std::uniform_int_distribution<int>(0, 4)(g_RandomEngine);
+        }
+
+        // Verify that the above generator adheres to the invariant:
+        // no two signals can change on the same cycle.
+        for (size_t i = 1; i < PuzzleInputSize; ++i)
+        {
+            bool posEdge = false;
+            int change = 0;
+
+            for (size_t j = 0; j < 4; ++j)
+            {
+                int prev = puzzle.inputs[j].data[i - 1];
+                int curr = puzzle.inputs[j].data[i];
+
+                if (prev != curr)
+                {
+                    if (change != 0)
+                    {
+                        __debugbreak();
+                    }
+                    change = j + 1;
+
+                    if (curr == 1)
+                        posEdge = true;
+                }
+            }
+
+            if (puzzle.outputs[0].data[i] != (posEdge ? change : 0))
+                __debugbreak();
+        }
+        break;
+
     case 40196: // Signal Pattern Detector
+        // Node arrangement:
+        //     I
+        //  0  1  2  x
+        //  4  5  6  7
+        //  8  9 10 11
+        //        O
+        puzzle.badNodes = { 3 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {1} });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, {0} });
+        for (size_t i = 1, zeroes = 0; i < PuzzleInputSize; ++i)
+        {
+            if (0 == std::uniform_int_distribution<int>(0, 3)(g_RandomEngine))
+            {
+                puzzle.inputs[0].data.push_back(std::uniform_int_distribution<int>(1, 30)(g_RandomEngine));
+                puzzle.outputs[0].data.push_back(0);
+                zeroes = 0;
+            }
+            else
+            {
+                puzzle.inputs[0].data.push_back(0);
+                puzzle.outputs[0].data.push_back((++zeroes == 3) ? (--zeroes, 1) : 0);
+            }
+        }
+        break;
+
     case 41427: // Sequence Peak Detector
     case 42656: // Sequence Reverser
     case 43786: // Signal Multiplier
