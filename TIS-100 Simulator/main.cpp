@@ -547,6 +547,43 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 41427: // Sequence Peak Detector
+        // Node arrangement:
+        //     I
+        //  0  1  2  3
+        //  4  5  6  x
+        //  8  9 10 11
+        //     O  O
+        puzzle.badNodes = { 7 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {} });
+        puzzle.outputs.push_back(Puzzle::IO{ 9, Neighbor::DOWN, {999} });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, {0} });
+        for (size_t i = 0; i < PuzzleInputSize; ++i)
+        {
+            if ((i > 0)
+                && (puzzle.inputs[0].data.back() != 0)
+                && ((i == PuzzleInputSize - 1)
+                    || (0 == std::uniform_int_distribution<int>(0, 5)(g_RandomEngine))))
+            {
+                puzzle.inputs[0].data.push_back(0);
+
+                if (i != PuzzleInputSize - 1)
+                {
+                    puzzle.outputs[0].data.push_back(999);
+                    puzzle.outputs[1].data.push_back(0);
+                }
+            }
+            else
+            {
+                int value = std::uniform_int_distribution<int>(10, 100)(g_RandomEngine);
+                puzzle.inputs[0].data.push_back(value);
+                if (value < puzzle.outputs[0].data.back())
+                    puzzle.outputs[0].data.back() = value;
+                if (value > puzzle.outputs[1].data.back())
+                    puzzle.outputs[1].data.back() = value;
+            }
+        }
+        break;
+
     case 42656: // Sequence Reverser
     case 43786: // Signal Multiplier
                 // this is as far as I've gotten in the game :)
