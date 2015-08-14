@@ -64,29 +64,33 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
     std::vector<StackMemoryNode> stackNodes;
     std::vector<INode*> nodeGrid(12);
 
+    // Reserve enough space so that the elements won't ever get relocated.
+    computeNodes.reserve(12);
+    stackNodes.reserve(12);
+
     for (int row = 0; row < 3; ++row)
     {
         for (int col = 0; col < 4; ++col)
         {
             int index = row * 4 + col;
 
-            INode*& cur = nodeGrid[index];
+            INode** cur = &nodeGrid[index];
 
             if (puzzle.stackNodes.find(index) != puzzle.stackNodes.end())
             {
                 stackNodes.emplace_back();
-                cur = &stackNodes[index];
+                *cur = &stackNodes.back();
             }
             else
             {
-                stackNodes.emplace_back();
-                cur = &computeNodes[index];
+                computeNodes.emplace_back();
+                *cur = &computeNodes.back();
             }
 
             if (col > 0)
-                INode::Join(nodeGrid[index - 1], Neighbor::RIGHT, cur);
+                INode::Join(nodeGrid[index - 1], Neighbor::RIGHT, *cur);
             if (row > 0)
-                INode::Join(nodeGrid[index - 4], Neighbor::DOWN, cur);
+                INode::Join(nodeGrid[index - 4], Neighbor::DOWN, *cur);
         }
     }
 
@@ -96,13 +100,13 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
     for (const Puzzle::IO& io : puzzle.inputs)
     {
         inputNodes.emplace_back(io.data);
-        INode::Join(&computeNodes[io.toNode], io.direction, &inputNodes.back());
+        INode::Join(nodeGrid[io.toNode], io.direction, &inputNodes.back());
     }
 
     for (const Puzzle::IO& io : puzzle.outputs)
     {
         outputNodes.emplace_back();
-        INode::Join(&computeNodes[io.toNode], io.direction, &outputNodes.back());
+        INode::Join(nodeGrid[io.toNode], io.direction, &outputNodes.back());
     }
 
     std::vector<INode*> nodes;

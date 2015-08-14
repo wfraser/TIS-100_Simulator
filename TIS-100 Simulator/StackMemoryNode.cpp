@@ -21,6 +21,11 @@ void StackMemoryNode::Read()
     //TODO
 }
 
+void StackMemoryNode::ReadComplete(int value)
+{
+    //TODO
+}
+
 void StackMemoryNode::Compute()
 {
     //TODO

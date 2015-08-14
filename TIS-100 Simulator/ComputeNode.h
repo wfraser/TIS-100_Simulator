@@ -96,6 +96,7 @@ private:
         Unprogrammed,
         Run,
         Read,
+        ReadComplete,
         Write,
         WriteComplete,
     };
@@ -124,6 +125,7 @@ public:
     virtual void Initialize();
 
     virtual void Read();
+    virtual void ReadComplete(int value);
     virtual void Compute();
     virtual void Write();
     virtual void WriteComplete();

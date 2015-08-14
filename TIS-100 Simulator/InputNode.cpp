@@ -30,6 +30,11 @@ void InputNode::Read()
     // Nothing
 }
 
+void InputNode::ReadComplete(int /*value*/)
+{
+    throw std::exception("Unexpected ReadComplete on InputNode");
+}
+
 void InputNode::Compute()
 {
     // Nothing

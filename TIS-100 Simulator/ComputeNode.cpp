@@ -476,8 +476,15 @@ std::shared_ptr<IOChannel>& ComputeNode::IO(Target target)
 
 void ComputeNode::Read()
 {
-    if (m_state != State::Run && m_state != State::Read)
+    if (m_state == State::ReadComplete)
+    {
+        m_state = State::Run;
         return;
+    }
+    else if (m_state != State::Run)
+    {
+        return;
+    }
 
     Instruction& instr = m_instructions[m_pc];
 
@@ -534,9 +541,9 @@ port_read:
     {
         m_state = State::Read;
         std::shared_ptr<IOChannel>& spIO = IO(readTarget);
-        if ((spIO != nullptr) && spIO->Read(this, &m_temp))
+        if (spIO != nullptr)
         {
-            m_state = State::Run;
+            spIO->Read(this);
         }
     }
     break;
@@ -546,11 +553,9 @@ port_read:
         for (auto target : { Target::LEFT, Target::RIGHT, Target::UP, Target::DOWN }) // this is the order used in the game
         {
             std::shared_ptr<IOChannel>& spIO = IO(target);
-            if ((spIO != nullptr) && spIO->Read(this, &m_temp))
+            if (spIO != nullptr)
             {
-                m_state = State::Run;
-                m_last = target;
-                break;
+                spIO->Read(this);
             }
         }
         break;
@@ -568,6 +573,33 @@ port_read:
             readTarget = m_last;
             goto port_read;
         }
+    }
+}
+
+void ComputeNode::ReadComplete(int value)
+{
+    switch (m_state)
+    {
+    case State::Read:
+        m_temp = value;
+        m_state = State::ReadComplete;
+        if ((m_instructions[m_pc].argsType == InstructionArgsType::Target)
+            && (m_instructions[m_pc].args.arg1.target == Target::ANY))
+        {
+            // Cancel the other reads.
+            // This is not thread-safe, and so assumes the nodes are executed sequentially.
+            for (Target target : { Target::UP, Target::DOWN, Target::LEFT, Target::RIGHT })
+            {
+                std::shared_ptr<IOChannel> spIO = IO(target);
+                if (spIO != nullptr)
+                {
+                    spIO->CancelRead(this);
+                }
+            }
+        }
+        break;
+    default:
+        throw std::exception("unexpected ReadComplete");
     }
 }
 
@@ -706,6 +738,7 @@ void ComputeNode::Step()
 
     case State::Unprogrammed:
     case State::Read:
+    case State::ReadComplete:
     case State::Write:
         return;
 
