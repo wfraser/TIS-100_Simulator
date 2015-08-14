@@ -58,17 +58,27 @@ public:
 
 bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pInstructionCount)
 {
-    ComputeNode computeNodes[12];
+    std::vector<ComputeNode> computeNodes;
+    std::vector<INode*> nodeGrid(12);
+
+    // In the future there will be other node types besides ComputeNode.
+    // The grid makeup will have to be configurable somehow by the Puzzle structure.
+    // Until then just always allocate 12 compute nodes and make the grid up of them.
+    computeNodes.resize(12);
 
     for (int row = 0; row < 3; ++row)
     {
         for (int col = 0; col < 4; ++col)
         {
-            INode* cur = &computeNodes[row * 4 + col];
-            if (col < 3)
-                INode::Join(cur, Neighbor::RIGHT, &computeNodes[row * 4 + col + 1]);
-            if (row < 2)
-                INode::Join(cur, Neighbor::DOWN, &computeNodes[(row + 1) * 4 + col]);
+            int index = row * 4 + col;
+
+            INode*& cur = nodeGrid[index];
+            cur = &computeNodes[index];
+
+            if (col > 0)
+                INode::Join(nodeGrid[index - 1], Neighbor::RIGHT, cur);
+            if (row > 0)
+                INode::Join(nodeGrid[index - 4], Neighbor::DOWN, cur);
         }
     }
 
@@ -89,32 +99,34 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
 
     std::vector<INode*> nodes;
 
-    for (size_t i = 0, n = _countof(computeNodes); i < n; i++)
+    for (size_t i = 0, n = computeNodes.size(); i < n; i++)
     {
         ComputeNode& node = computeNodes[i];
-        const std::string& program = puzzle.programs[i];
-        if (!program.empty())
-            node.Assemble(program);
-        nodes.push_back(&node);
-    }
 
-    for (InputNode& node : inputNodes)
-        nodes.push_back(&node);
+        node.Assemble(puzzle.programs[i]);
 
-    for (OutputNode& node : outputNodes)
-        nodes.push_back(&node);
-
-    for (INode* node : nodes)
-        node->Initialize();
-
-    for (size_t i = 0; i < _countof(computeNodes); ++i)
-    {
-        int instructions = computeNodes[i].InstructionCount();
+        int instructions = node.InstructionCount();
         if (instructions > 0)
         {
+            // Only start and add the compute node if it has a program to execute.
+            node.Initialize();
+            nodes.push_back(&node);
+
             (*pInstructionCount) += instructions;
             ++(*pNodeCount);
         }
+    }
+
+    for (InputNode& node : inputNodes)
+    {
+        node.Initialize();
+        nodes.push_back(&node);
+    }
+
+    for (OutputNode& node : outputNodes)
+    {
+        node.Initialize();
+        nodes.push_back(&node);
     }
 
     *pNumCycles = 0;
@@ -199,6 +211,29 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
 
     switch (puzzleNumber)
     {
+    case -1: // Connectivity check. Hardcoded program; ignores the save file path.
+        puzzle.badNodes = {};
+
+        puzzle.programs[0] = "MOV RIGHT,DOWN";
+        puzzle.programs[1] = "MOV UP,ACC\nMOV ACC,LEFT\nMOV ACC,RIGHT\nMOV ACC,DOWN";
+        puzzle.programs[2] = "MOV LEFT,ACC\nMOV ACC,RIGHT\nMOV ACC,DOWN";
+        puzzle.programs[3] = "MOV LEFT,DOWN";
+
+        puzzle.programs[4] = "MOV UP,ACC\nMOV ACC,RIGHT\nMOV ACC,DOWN";
+        puzzle.programs[5] = "MOV UP,ACC\nADD LEFT\nMOV ACC,RIGHT\nMOV ACC,DOWN";
+        puzzle.programs[6] = "MOV UP,ACC\nADD LEFT\nMOV ACC,RIGHT\nMOV ACC,DOWN";
+        puzzle.programs[7] = "MOV UP,ACC\nADD LEFT\nMOV ACC,DOWN";
+
+        puzzle.programs[8] = "MOV UP,RIGHT";
+        puzzle.programs[9] = "MOV UP,ACC\nADD LEFT\nMOV ACC,RIGHT\n";
+        puzzle.programs[10] = "MOV UP,ACC\nADD RIGHT\nADD LEFT\nMOV ACC,DOWN";
+        puzzle.programs[11] = "MOV UP,LEFT";
+
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {1, 2, 3, 4} });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, { 10, 20, 30, 40 } });
+
+        return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
+
     case 150:   // Self-Test Diagnostic
         // Node arrangement:
         //  I        I
