@@ -3,6 +3,7 @@
 #include "InputNode.h"
 #include "OutputNode.h"
 #include "ComputeNode.h"
+#include "StackMemoryNode.h"
 
 static const size_t PuzzleInputSize = 39;
 static std::default_random_engine g_RandomEngine;
@@ -54,17 +55,14 @@ public:
     std::vector<IO> inputs, outputs;
 
     std::set<int> badNodes;
+    std::set<int> stackNodes;
 };
 
 bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pInstructionCount)
 {
     std::vector<ComputeNode> computeNodes;
+    std::vector<StackMemoryNode> stackNodes;
     std::vector<INode*> nodeGrid(12);
-
-    // In the future there will be other node types besides ComputeNode.
-    // The grid makeup will have to be configurable somehow by the Puzzle structure.
-    // Until then just always allocate 12 compute nodes and make the grid up of them.
-    computeNodes.resize(12);
 
     for (int row = 0; row < 3; ++row)
     {
@@ -73,7 +71,17 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
             int index = row * 4 + col;
 
             INode*& cur = nodeGrid[index];
-            cur = &computeNodes[index];
+
+            if (puzzle.stackNodes.find(index) != puzzle.stackNodes.end())
+            {
+                stackNodes.emplace_back();
+                cur = &stackNodes[index];
+            }
+            else
+            {
+                stackNodes.emplace_back();
+                cur = &computeNodes[index];
+            }
 
             if (col > 0)
                 INode::Join(nodeGrid[index - 1], Neighbor::RIGHT, cur);
@@ -585,6 +593,39 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 42656: // Sequence Reverser
+                // Node arrangement:
+                //     I
+                //  0  1  S  3
+                //  4  5  6  x
+                //  X  S 10 11
+                //        O
+        puzzle.badNodes = { 8 };
+        puzzle.stackNodes = { 2, 9 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {} });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, {} });
+        for (size_t i = 0, sequenceStart = 0; i < PuzzleInputSize; ++i)
+        {
+            // Zero
+            if ((i == PuzzleInputSize - 1)
+                || ((i > 0)
+                    && (0 == std::uniform_int_distribution<int>(0, 5)(g_RandomEngine))))
+            {
+                //for (size_t j = i - 1; j >= sequenceStart; --j)
+                for (size_t j = 1, n = puzzle.inputs.back().data.size(); j <= n - sequenceStart; ++j)
+                {
+                    puzzle.outputs.back().data.push_back(puzzle.inputs.back().data[n - j]);
+                }
+                puzzle.inputs.back().data.push_back(0);
+                puzzle.outputs.back().data.push_back(0);
+                sequenceStart = i + 1;
+            }
+            else
+            {
+                puzzle.inputs.back().data.push_back(std::uniform_int_distribution<int>(10, 100)(g_RandomEngine));
+            }
+        }
+        break;
+
     case 43786: // Signal Multiplier
                 // this is as far as I've gotten in the game :)
         throw std::exception("That puzzle hasn't been implemented yet.");
