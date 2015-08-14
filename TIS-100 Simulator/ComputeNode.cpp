@@ -443,7 +443,7 @@ void ComputeNode::Assemble(const std::string& assembly)
     }
 }
 
-int ComputeNode::InstructionCount()
+int ComputeNode::InstructionCount() const
 {
     return m_instructions.size();
 }
