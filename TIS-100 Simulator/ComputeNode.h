@@ -86,6 +86,8 @@ public:
         };
         JumpTarget* jumpTarget;
     } args;
+
+    std::string ToString();
 };
 
 class ComputeNode : public INode

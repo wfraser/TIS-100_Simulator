@@ -8,7 +8,12 @@
 static const size_t PuzzleInputSize = 39;
 static std::default_random_engine g_RandomEngine;
 
-void ReadSaveFile(const wchar_t* path, std::string programs[12], const std::set<int>& badNodes)
+void ReadSaveFile(
+    const wchar_t* path,
+    std::string programs[12],
+    const std::set<int>& badNodes,
+    const std::set<int>& stackNodes
+    )
 {
     std::ifstream file(path);
     std::string line;
@@ -31,8 +36,11 @@ void ReadSaveFile(const wchar_t* path, std::string programs[12], const std::set<
             // this assumes that the nodes are always written out in order.
             ++nodeNumber;
 
-            while (badNodes.find(nodeNumber) != badNodes.end())
+            while (badNodes.find(nodeNumber) != badNodes.end()
+                || stackNodes.find(nodeNumber) != stackNodes.end())
+            {
                 nodeNumber++;
+            }
         }
         else
         {
@@ -85,6 +93,7 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
             {
                 computeNodes.emplace_back();
                 *cur = &computeNodes.back();
+                computeNodes.back().Assemble(puzzle.programs[index]);
             }
 
             if (col > 0)
@@ -116,8 +125,6 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
     for (size_t i = 0, n = computeNodes.size(); i < n; i++)
     {
         ComputeNode& node = computeNodes[i];
-
-        node.Assemble(puzzle.programs[i]);
 
         int instructions = node.InstructionCount();
         if (instructions > 0)
@@ -171,6 +178,10 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
         }
 
         ++(*pNumCycles);
+
+#ifdef DEBUG_OUTPUT
+        printf("\t\t\t\t\t\t\tcycle %d\n", *pNumCycles);
+#endif
 
         for (auto& node : nodes)
             node->Read();
@@ -238,7 +249,7 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         puzzle.outputs.push_back(Puzzle::IO{ 2, Neighbor::UP, {1,2,3,4} });
 
         puzzle.programs[0] = "MOV UP,RIGHT";
-        puzzle.programs[1] = "MOV LEFT,UP";
+        puzzle.programs[2] = "MOV LEFT,UP";
 
         return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
 
@@ -619,7 +630,7 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
                 // Node arrangement:
                 //     I
                 //  0  1  S  3
-                //  4  5  6  x
+                //  4  5  6  7
                 //  x  S 10 11
                 //        O
         puzzle.badNodes = { 8 };
@@ -658,7 +669,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
 
     ReadSaveFile(saveFilePath,
         puzzle.programs,
-        puzzle.badNodes);
+        puzzle.badNodes,
+        puzzle.stackNodes);
 
     return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
 }
