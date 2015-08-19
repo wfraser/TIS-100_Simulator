@@ -1,80 +1,100 @@
 #include "pch.h"
 #include "Node.h"
 #include "IOChannel.h"
+#include <assert.h>
 
 #define BREAK_ON_CONFLICT
 
+#ifdef BREAK_ON_CONFLICT
+#include "ComputeNode.h"
+#include "StackMemoryNode.h"
+#endif
+
 IOChannel::IOChannel(INode * a, INode * b)
-    : m_nodeA(a)
-    , m_nodeB(b)
+    : m_a(Endpoint{ a, false, false, 0 })
+    , m_b(Endpoint{ b, false, false, 0 })
 {
 }
 
-void IOChannel::Write(INode * sender, int value)
+void IOChannel::GetEndpoints(INode* node, Endpoint** ppThatEndpoint, Endpoint** ppOtherEndpoint)
 {
+    *ppThatEndpoint = &m_a;
+    *ppOtherEndpoint = &m_b;
+    if (node == m_b.node)
+        std::swap(*ppThatEndpoint, *ppOtherEndpoint);
+    else
+        assert(node == m_a.node);
+}
+
+void IOChannel::Write(INode * senderNode, int value)
+{
+    Endpoint* receiver;
+    Endpoint* sender;
+    GetEndpoints(senderNode, &sender, &receiver);
+
 #ifdef BREAK_ON_CONFLICT
-    if (m_sender != nullptr && m_sender != sender)
+    assert(!sender->writePending);
+    if ((dynamic_cast<StackMemoryNode*>(senderNode) == nullptr)
+        && sender->readPending)
     {
-        // Write conflict.
+        // Can't have both a read and a write pending, unless it's a StackMemoryNode.
         __debugbreak();
     }
 #endif
 
-    if (m_receiver != nullptr)
+    if (receiver->readPending)
     {
-        // Receiver is waiting. Send immediately.
-        m_receiver->ReadComplete(value);
-        m_receiver = nullptr;
-        sender->WriteComplete();
+        receiver->node->ReadComplete(value);
+        receiver->readPending = false;
+        senderNode->WriteComplete();
     }
     else
     {
-        // No receiver waiting. Sender will have to block.
-        // Save the sender so we can notify on read.
-        m_sender = sender;
-        m_value = value;
+        sender->writePending = true;
+        sender->sentValue = value;
     }
 }
 
-void IOChannel::Read(INode * receiver)
+void IOChannel::Read(INode * receiverNode)
 {
-    if ((m_sender != receiver) && (m_sender != nullptr))
-    {
-        // Value is already available. Send the completions right away.
-        m_sender->WriteComplete();
-        m_sender = nullptr;
-        receiver->ReadComplete(m_value);
-    }
-    else
-    {
-        // Value is not available; reader will have to block.
-        if (m_receiver == nullptr)
-        {
-            // Save the receiver so we can notify on write.
-            m_receiver = receiver;
-        }
+    Endpoint* receiver;
+    Endpoint* sender;
+    GetEndpoints(receiverNode, &receiver, &sender);
+
 #ifdef BREAK_ON_CONFLICT
-        else
-        {
-            // Read conflict.
-            __debugbreak();
-        }
+    assert(!receiver->readPending);
+    if ((dynamic_cast<StackMemoryNode*>(receiverNode) == nullptr)
+        && receiver->writePending)
+    {
+        // Can't have both a read and a write pending, unless it's a StackMemoryNode.
+        __debugbreak();
+    }
 #endif
+
+    if (sender->writePending)
+    {
+        receiver->node->ReadComplete(sender->sentValue);
+        sender->node->WriteComplete();
+        sender->writePending = false;
+    }
+    else
+    {
+        receiver->readPending = true;
     }
 }
 
-void IOChannel::CancelRead(INode* receiver)
+void IOChannel::CancelRead(INode* receiverNode)
 {
-    if (m_receiver == receiver)
-    {
-        m_receiver = nullptr;
-    }
+    Endpoint* receiver;
+    Endpoint* sender;
+    GetEndpoints(receiverNode, &receiver, &sender);
+    receiver->readPending = false;
 }
 
-void IOChannel::CancelWrite(INode* sender)
+void IOChannel::CancelWrite(INode* senderNode)
 {
-    if (m_sender == sender)
-    {
-        m_sender = nullptr;
-    }
+    Endpoint* receiver;
+    Endpoint* sender;
+    GetEndpoints(senderNode, &sender, &receiver);
+    sender->writePending = false;
 }

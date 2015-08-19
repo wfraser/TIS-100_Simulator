@@ -97,12 +97,14 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
     std::vector<InputNode> inputNodes;
     std::vector<OutputNode> outputNodes;
 
+    inputNodes.reserve(puzzle.inputs.size());
     for (const Puzzle::IO& io : puzzle.inputs)
     {
         inputNodes.emplace_back(io.data);
         INode::Join(nodeGrid[io.toNode], io.direction, &inputNodes.back());
     }
 
+    outputNodes.reserve(puzzle.outputs.size());
     for (const Puzzle::IO& io : puzzle.outputs)
     {
         outputNodes.emplace_back();
