@@ -143,6 +143,12 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
         nodes.push_back(&node);
     }
 
+    for (StackMemoryNode& node : stackNodes)
+    {
+        node.Initialize();
+        nodes.push_back(&node);
+    }
+
     *pNumCycles = 0;
     for (;;)
     {
@@ -225,6 +231,17 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
 
     switch (puzzleNumber)
     {
+    case -2: // Stack memory test.
+        puzzle.badNodes = {};
+        puzzle.stackNodes = { 1 };
+        puzzle.inputs.push_back(Puzzle::IO{ 0, Neighbor::UP, {1,2,3,4} });
+        puzzle.outputs.push_back(Puzzle::IO{ 2, Neighbor::UP, {1,2,3,4} });
+
+        puzzle.programs[0] = "MOV UP,RIGHT";
+        puzzle.programs[1] = "MOV LEFT,UP";
+
+        return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
+
     case -1: // Connectivity check. Hardcoded program; ignores the save file path.
         puzzle.badNodes = {};
 
@@ -603,7 +620,7 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
                 //     I
                 //  0  1  S  3
                 //  4  5  6  x
-                //  X  S 10 11
+                //  x  S 10 11
                 //        O
         puzzle.badNodes = { 8 };
         puzzle.stackNodes = { 2, 9 };
@@ -616,7 +633,6 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
                 || ((i > 0)
                     && (0 == std::uniform_int_distribution<int>(0, 5)(g_RandomEngine))))
             {
-                //for (size_t j = i - 1; j >= sequenceStart; --j)
                 for (size_t j = 1, n = puzzle.inputs.back().data.size(); j <= n - sequenceStart; ++j)
                 {
                     puzzle.outputs.back().data.push_back(puzzle.inputs.back().data[n - j]);
