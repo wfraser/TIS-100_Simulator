@@ -3,15 +3,24 @@
 class IOChannel
 {
 private:
-    INode* m_nodeA;
-    INode* m_nodeB;
-    int m_value;
-    INode* m_sender;
+    struct Endpoint
+    {
+        INode* node;
+        bool readPending;
+        bool writePending;
+        int sentValue;
+    };
+
+    Endpoint m_a, m_b;
 
 public:
     IOChannel(INode* a, INode* b);
 
-    void Write(INode* sender, int value);
-    bool Read(INode* receiver, int* pValue);
-    void CancelWrite(INode* sender);
+    void Write(INode* senderNode, int value);
+    void Read(INode* receiverNode);
+    void CancelRead(INode* receiverNode);
+    void CancelWrite(INode* senderNode);
+
+protected:
+    void GetEndpoints(INode* node, Endpoint** ppThatEndpoint, Endpoint** ppOtherEndpoint);
 };

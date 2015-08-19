@@ -3,6 +3,12 @@
 #include "ComputeNode.h"
 #include "IOChannel.h"
 
+#ifdef DEBUG_OUTPUT
+#define DEBUG(...) printf("compute%d: ", m_nodeId), printf(__VA_ARGS__), printf("\n")
+#else
+#define DEBUG(...) (0)
+#endif
+
 JumpTarget::JumpTarget()
     : type(JumpTargetType::Indeterminate)
 {}
@@ -128,6 +134,16 @@ static std::unordered_map<std::string, Target> s_targets = {
 #undef TGT
 };
 
+static const std::string& TargetToString(Target t)
+{
+    for (const auto& pair : s_targets)
+    {
+        if (pair.second == t)
+            return pair.first;
+    }
+    throw std::exception("invalid target");
+}
+
 static Neighbor TargetToNeighbor(Target target)
 {
     switch (target)
@@ -251,6 +267,61 @@ static bool IsTwoArgOpcode(Opcode op)
     default:
         return false;
     }
+}
+
+std::string Instruction::ToString()
+{
+    std::stringstream out;
+    for (const auto& pair : s_opcodes)
+    {
+        if (pair.second == op)
+            out << pair.first;
+    }
+
+    if (IsOneArgOpcode(op) || IsTwoArgOpcode(op) || IsJumpOpcode(op))
+    {
+        out << " ";
+        switch (argsType)
+        {
+        case InstructionArgsType::Immediate:
+            out << args.arg1.immediate;
+            break;
+        case InstructionArgsType::Target:
+            out << TargetToString(args.arg1.target);
+            break;
+        case InstructionArgsType::JumpTarget:
+            if (IsJumpOpcode(op))
+            {
+                switch (args.jumpTarget->type)
+                {
+                case JumpTargetType::Indeterminate:
+                    out << "[indeterminate jump target]";
+                    break;
+                case JumpTargetType::Label:
+                    out << *(args.jumpTarget->value.label);
+                    break;
+                case JumpTargetType::Offset:
+                    out << args.jumpTarget->value.offset;
+                    break;
+                case JumpTargetType::Target:
+                    out << TargetToString(args.jumpTarget->value.target);
+                    break;
+                }
+            }
+            else
+            {
+                throw std::exception("jump target arg for non-jump opcode");
+            }
+            break;
+        default:
+            throw std::exception("bad argsType");
+        }
+    }
+    if (IsTwoArgOpcode(op))
+    {
+        out << "," << TargetToString(args.arg2);
+    }
+    return out.str();
 }
 
 int ComputeNode::s_nextNodeId = 0;
@@ -476,10 +547,20 @@ std::shared_ptr<IOChannel>& ComputeNode::IO(Target target)
 
 void ComputeNode::Read()
 {
-    if (m_state != State::Run && m_state != State::Read)
+    if (m_state == State::ReadComplete)
+    {
+        DEBUG("Read(): pending read completed");
+        m_state = State::Run;
         return;
+    }
+    else if (m_state != State::Run)
+    {
+        DEBUG("Read(): blocked");
+        return;
+    }
 
     Instruction& instr = m_instructions[m_pc];
+    DEBUG("Read(): %s", instr.ToString().c_str());
 
     Target readTarget = Target::None;
 
@@ -534,23 +615,26 @@ port_read:
     {
         m_state = State::Read;
         std::shared_ptr<IOChannel>& spIO = IO(readTarget);
-        if ((spIO != nullptr) && spIO->Read(this, &m_temp))
+        if (spIO != nullptr)
         {
-            m_state = State::Run;
+            DEBUG("reading from target %s", TargetToString(readTarget).c_str());
+            spIO->Read(this);
         }
+        else
+            DEBUG("nobody to read from at %s", TargetToString(readTarget).c_str());
     }
     break;
 
     case Target::ANY:
         m_state = State::Read;
+        DEBUG("reading from ANY");
         for (auto target : { Target::LEFT, Target::RIGHT, Target::UP, Target::DOWN }) // this is the order used in the game
         {
             std::shared_ptr<IOChannel>& spIO = IO(target);
-            if ((spIO != nullptr) && spIO->Read(this, &m_temp))
+            if (spIO != nullptr)
             {
-                m_state = State::Run;
-                m_last = target;
-                break;
+                DEBUG("reading from target %s", TargetToString(readTarget).c_str());
+                spIO->Read(this);
             }
         }
         break;
@@ -560,23 +644,59 @@ port_read:
         {
             // The manual says this is "implementation-defined behavior".
             // The game treats this as reading from NIL.
+            DEBUG("reading from unset LAST (behaving as if reading from NIL)");
             m_temp = 0;
             break;
         }
         else
         {
+            DEBUG("reading from LAST (%s)", TargetToString(m_last).c_str());
             readTarget = m_last;
             goto port_read;
         }
     }
 }
 
+void ComputeNode::ReadComplete(int value)
+{
+    switch (m_state)
+    {
+    case State::Read:
+        DEBUG("read complete");
+        m_temp = value;
+        m_state = State::ReadComplete;
+        if ((m_instructions[m_pc].argsType == InstructionArgsType::Target)
+            && (m_instructions[m_pc].args.arg1.target == Target::ANY))
+        {
+            // Cancel the other reads.
+            // This is not thread-safe, and so assumes the nodes are executed sequentially.
+            DEBUG("cancelling other reads");
+            for (Target target : { Target::UP, Target::DOWN, Target::LEFT, Target::RIGHT })
+            {
+                std::shared_ptr<IOChannel> spIO = IO(target);
+                if (spIO != nullptr)
+                {
+                    DEBUG("cancelling read from %s", TargetToString(target).c_str());
+                    spIO->CancelRead(this);
+                }
+            }
+        }
+        break;
+    default:
+        throw std::exception("unexpected ReadComplete");
+    }
+}
+
 void ComputeNode::Compute()
 {
     if (m_state != State::Run)
+    {
+        DEBUG("Compute(): blocked");
         return;
+    }
 
     Instruction& instr = m_instructions[m_pc];
+    DEBUG("Compute(): %s", instr.ToString().c_str());
 
     switch (instr.op)
     {
@@ -604,9 +724,14 @@ void ComputeNode::Compute()
 void ComputeNode::Write()
 {
     if (m_state != State::Run)
+    {
+        DEBUG("Write(): blocked");
         return;
+    }
 
     Instruction& instr = m_instructions[m_pc];
+    DEBUG("Write(): %s", instr.ToString().c_str());
+
     Target writeTarget = Target::None;
 
     switch (instr.op)
@@ -636,13 +761,17 @@ port_write:
         std::shared_ptr<IOChannel>& spIO = IO(writeTarget);
         if (spIO != nullptr)
         {
+            DEBUG("writing to target %s", TargetToString(writeTarget).c_str());
             spIO->Write(this, m_temp);
         }
+        else
+            DEBUG("nobody to write to at %s", TargetToString(writeTarget).c_str());
     }
     break;
 
     case Target::ANY:
         m_state = State::Write;
+        DEBUG("doing an ANY write");
         // In the game, if multiple neighbors read at the same cycle, the one with the lowest node
         // number gets the value and the others do not.
         // This will pose a compatibility problem if we don't execute the nodes in the same order.
@@ -651,6 +780,7 @@ port_write:
             std::shared_ptr<IOChannel> spIO = IO(target);
             if (spIO != nullptr)
             {
+                DEBUG("writing to target %s", TargetToString(target).c_str());
                 spIO->Write(this, m_temp);
             }
         }
@@ -661,10 +791,12 @@ port_write:
         {
             // The manual says this is "implementation-defined behavior".
             // The game treats this as writing to NIL.
+            DEBUG("writing to unset LAST (behaving as if NIL)");
             break;
         }
         else
         {
+            DEBUG("writing to LAST (%s)", TargetToString(m_last).c_str());
             writeTarget = m_last;
             goto port_write;
         }
@@ -676,17 +808,20 @@ void ComputeNode::WriteComplete()
     switch (m_state)
     {
     case State::Write:
+        DEBUG("write complete");
         m_state = State::WriteComplete;
         if ((m_instructions[m_pc].op == Opcode::MOV)
             && m_instructions[m_pc].args.arg2 == Target::ANY)
         {
             // Cancel the other writes.
             // This is not thread-safe, and so assumes the nodes are executed sequentially.
+            DEBUG("cancelling other writes");
             for (Target target : { Target::UP, Target::DOWN, Target::LEFT, Target::RIGHT })
             {
                 std::shared_ptr<IOChannel> spIO = IO(target);
                 if (spIO != nullptr)
                 {
+                    DEBUG("cancelling write to %s", TargetToString(target).c_str());
                     spIO->CancelWrite(this);
                 }
             }
@@ -706,10 +841,13 @@ void ComputeNode::Step()
 
     case State::Unprogrammed:
     case State::Read:
+    case State::ReadComplete:
     case State::Write:
+        DEBUG("Step(): blocked");
         return;
 
     case State::WriteComplete:
+        DEBUG("Step(): WriteComplete -> Run");
         m_state = State::Run;
         break;
     }
@@ -761,9 +899,11 @@ void ComputeNode::Step()
             // offset was loaded by Read()
             m_pc += m_temp;
         }
+        DEBUG("Step(): jumping");
     }
     else
     {
+        DEBUG("Step(): advancing by one");
         ++m_pc;
     }
 
@@ -783,4 +923,6 @@ void ComputeNode::Step()
     {
         m_pc = 0;
     }
+
+    DEBUG("Step(): new PC is %d", m_pc);
 }

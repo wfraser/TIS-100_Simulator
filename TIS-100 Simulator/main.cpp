@@ -3,11 +3,17 @@
 #include "InputNode.h"
 #include "OutputNode.h"
 #include "ComputeNode.h"
+#include "StackMemoryNode.h"
 
 static const size_t PuzzleInputSize = 39;
 static std::default_random_engine g_RandomEngine;
 
-void ReadSaveFile(const wchar_t* path, std::string programs[12], const std::set<int>& badNodes)
+void ReadSaveFile(
+    const wchar_t* path,
+    std::string programs[12],
+    const std::set<int>& badNodes,
+    const std::set<int>& stackNodes
+    )
 {
     std::ifstream file(path);
     std::string line;
@@ -30,8 +36,11 @@ void ReadSaveFile(const wchar_t* path, std::string programs[12], const std::set<
             // this assumes that the nodes are always written out in order.
             ++nodeNumber;
 
-            while (badNodes.find(nodeNumber) != badNodes.end())
+            while (badNodes.find(nodeNumber) != badNodes.end()
+                || stackNodes.find(nodeNumber) != stackNodes.end())
+            {
                 nodeNumber++;
+            }
         }
         else
         {
@@ -54,17 +63,18 @@ public:
     std::vector<IO> inputs, outputs;
 
     std::set<int> badNodes;
+    std::set<int> stackNodes;
 };
 
 bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pInstructionCount)
 {
     std::vector<ComputeNode> computeNodes;
+    std::vector<StackMemoryNode> stackNodes;
     std::vector<INode*> nodeGrid(12);
 
-    // In the future there will be other node types besides ComputeNode.
-    // The grid makeup will have to be configurable somehow by the Puzzle structure.
-    // Until then just always allocate 12 compute nodes and make the grid up of them.
-    computeNodes.resize(12);
+    // Reserve enough space so that the elements won't ever get relocated.
+    computeNodes.reserve(12);
+    stackNodes.reserve(12);
 
     for (int row = 0; row < 3; ++row)
     {
@@ -72,29 +82,42 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
         {
             int index = row * 4 + col;
 
-            INode*& cur = nodeGrid[index];
-            cur = &computeNodes[index];
+            INode** cur = &nodeGrid[index];
+
+            if (puzzle.stackNodes.find(index) != puzzle.stackNodes.end())
+            {
+                stackNodes.emplace_back();
+                *cur = &stackNodes.back();
+            }
+            else
+            {
+                computeNodes.emplace_back();
+                *cur = &computeNodes.back();
+                computeNodes.back().Assemble(puzzle.programs[index]);
+            }
 
             if (col > 0)
-                INode::Join(nodeGrid[index - 1], Neighbor::RIGHT, cur);
+                INode::Join(nodeGrid[index - 1], Neighbor::RIGHT, *cur);
             if (row > 0)
-                INode::Join(nodeGrid[index - 4], Neighbor::DOWN, cur);
+                INode::Join(nodeGrid[index - 4], Neighbor::DOWN, *cur);
         }
     }
 
     std::vector<InputNode> inputNodes;
     std::vector<OutputNode> outputNodes;
 
+    inputNodes.reserve(puzzle.inputs.size());
     for (const Puzzle::IO& io : puzzle.inputs)
     {
         inputNodes.emplace_back(io.data);
-        INode::Join(&computeNodes[io.toNode], io.direction, &inputNodes.back());
+        INode::Join(nodeGrid[io.toNode], io.direction, &inputNodes.back());
     }
 
+    outputNodes.reserve(puzzle.outputs.size());
     for (const Puzzle::IO& io : puzzle.outputs)
     {
         outputNodes.emplace_back();
-        INode::Join(&computeNodes[io.toNode], io.direction, &outputNodes.back());
+        INode::Join(nodeGrid[io.toNode], io.direction, &outputNodes.back());
     }
 
     std::vector<INode*> nodes;
@@ -102,8 +125,6 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
     for (size_t i = 0, n = computeNodes.size(); i < n; i++)
     {
         ComputeNode& node = computeNodes[i];
-
-        node.Assemble(puzzle.programs[i]);
 
         int instructions = node.InstructionCount();
         if (instructions > 0)
@@ -124,6 +145,12 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
     }
 
     for (OutputNode& node : outputNodes)
+    {
+        node.Initialize();
+        nodes.push_back(&node);
+    }
+
+    for (StackMemoryNode& node : stackNodes)
     {
         node.Initialize();
         nodes.push_back(&node);
@@ -151,6 +178,10 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
         }
 
         ++(*pNumCycles);
+
+#ifdef DEBUG_OUTPUT
+        printf("\t\t\t\t\t\t\tcycle %d\n", *pNumCycles);
+#endif
 
         for (auto& node : nodes)
             node->Read();
@@ -211,6 +242,17 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
 
     switch (puzzleNumber)
     {
+    case -2: // Stack memory test.
+        puzzle.badNodes = {};
+        puzzle.stackNodes = { 1 };
+        puzzle.inputs.push_back(Puzzle::IO{ 0, Neighbor::UP, {1,2,3,4} });
+        puzzle.outputs.push_back(Puzzle::IO{ 2, Neighbor::UP, {1,2,3,4} });
+
+        puzzle.programs[0] = "MOV UP,RIGHT";
+        puzzle.programs[2] = "MOV LEFT,UP";
+
+        return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
+
     case -1: // Connectivity check. Hardcoded program; ignores the save file path.
         puzzle.badNodes = {};
 
@@ -585,6 +627,38 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 42656: // Sequence Reverser
+                // Node arrangement:
+                //     I
+                //  0  1  S  3
+                //  4  5  6  7
+                //  x  S 10 11
+                //        O
+        puzzle.badNodes = { 8 };
+        puzzle.stackNodes = { 2, 9 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {} });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, {} });
+        for (size_t i = 0, sequenceStart = 0; i < PuzzleInputSize; ++i)
+        {
+            // Zero
+            if ((i == PuzzleInputSize - 1)
+                || ((i > 0)
+                    && (0 == std::uniform_int_distribution<int>(0, 5)(g_RandomEngine))))
+            {
+                for (size_t j = 1, n = puzzle.inputs.back().data.size(); j <= n - sequenceStart; ++j)
+                {
+                    puzzle.outputs.back().data.push_back(puzzle.inputs.back().data[n - j]);
+                }
+                puzzle.inputs.back().data.push_back(0);
+                puzzle.outputs.back().data.push_back(0);
+                sequenceStart = i + 1;
+            }
+            else
+            {
+                puzzle.inputs.back().data.push_back(std::uniform_int_distribution<int>(10, 100)(g_RandomEngine));
+            }
+        }
+        break;
+
     case 43786: // Signal Multiplier
                 // this is as far as I've gotten in the game :)
         throw std::exception("That puzzle hasn't been implemented yet.");
@@ -595,7 +669,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
 
     ReadSaveFile(saveFilePath,
         puzzle.programs,
-        puzzle.badNodes);
+        puzzle.badNodes,
+        puzzle.stackNodes);
 
     return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
 }

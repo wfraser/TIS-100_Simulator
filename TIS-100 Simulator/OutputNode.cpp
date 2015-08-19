@@ -5,6 +5,7 @@
 #include "IOChannel.h"
 
 OutputNode::OutputNode()
+    : m_state(State::Run)
 {}
 
 void OutputNode::SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO)
@@ -25,10 +26,26 @@ void OutputNode::Initialize()
 
 void OutputNode::Read()
 {
-    int value;
-    if ((m_spIO != nullptr) && m_spIO->Read(this, &value))
+    if (m_state == State::Run)
+    {
+        m_state = State::Read;
+        if (m_spIO != nullptr)
+        {
+            m_spIO->Read(this);
+        }
+    }
+}
+
+void OutputNode::ReadComplete(int value)
+{
+    if (m_state == State::Read)
     {
         Data.push_back(value);
+        m_state = State::Run;
+    }
+    else
+    {
+        throw std::exception("unexpected ReadComplete");
     }
 }
 

@@ -74,6 +74,7 @@
     <ClInclude Include="OutputNode.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Node.h" />
+    <ClInclude Include="StackMemoryNode.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ComputeNode.cpp" />
@@ -83,6 +84,7 @@
     <ClCompile Include="Node.cpp" />
     <ClCompile Include="OutputNode.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="StackMemoryNode.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

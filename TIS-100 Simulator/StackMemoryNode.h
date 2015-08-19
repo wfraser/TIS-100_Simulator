@@ -1,25 +1,18 @@
 #pragma once
 
-class OutputNode : public INode
+class StackMemoryNode : public INode
 {
 private:
-    enum class State
-    {
-        Run,
-        Read
-    };
-
-    State m_state;
-    std::shared_ptr<IOChannel> m_spIO;
-    Neighbor m_neighborDirection;
+    bool m_readReady;
+    bool m_writeReady;
+    std::shared_ptr<IOChannel> m_neighbors[static_cast<size_t>(Neighbor::COUNT)];
+    std::vector<int> m_data;
 
 public:
-    std::vector<int> Data;
-
-    OutputNode();
-
+    StackMemoryNode();
     virtual void SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO);
     virtual void Initialize();
+
     virtual void Read();
     virtual void ReadComplete(int value);
     virtual void Compute();
