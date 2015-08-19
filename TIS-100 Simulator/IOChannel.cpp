@@ -33,19 +33,21 @@ void IOChannel::Write(INode * senderNode, int value)
     GetEndpoints(senderNode, &sender, &receiver);
 
 #ifdef BREAK_ON_CONFLICT
-    assert(!sender->writePending);
-    if ((dynamic_cast<StackMemoryNode*>(senderNode) == nullptr)
-        && sender->readPending)
+    // Unless it's a StackMemoryNode:
+    if (dynamic_cast<StackMemoryNode*>(senderNode) == nullptr)
     {
-        // Can't have both a read and a write pending, unless it's a StackMemoryNode.
-        __debugbreak();
+        // Can't have both a read and a write pending.
+        assert(!sender->readPending);
+
+        // Shouldn't already have a write pending.
+        assert(!sender->writePending);
     }
 #endif
 
     if (receiver->readPending)
     {
-        receiver->node->ReadComplete(value);
         receiver->readPending = false;
+        receiver->node->ReadComplete(value);
         senderNode->WriteComplete();
     }
     else
@@ -62,20 +64,22 @@ void IOChannel::Read(INode * receiverNode)
     GetEndpoints(receiverNode, &receiver, &sender);
 
 #ifdef BREAK_ON_CONFLICT
-    assert(!receiver->readPending);
-    if ((dynamic_cast<StackMemoryNode*>(receiverNode) == nullptr)
-        && receiver->writePending)
+    
+    if (dynamic_cast<StackMemoryNode*>(receiverNode) == nullptr)
     {
-        // Can't have both a read and a write pending, unless it's a StackMemoryNode.
-        __debugbreak();
+        // Can't have both a read and a write pending.
+        assert(!receiver->writePending);
+
+        // Shouldn't already have a read pending.
+        assert(!receiver->readPending);
     }
 #endif
 
     if (sender->writePending)
     {
         receiver->node->ReadComplete(sender->sentValue);
-        sender->node->WriteComplete();
         sender->writePending = false;
+        sender->node->WriteComplete();
     }
     else
     {
