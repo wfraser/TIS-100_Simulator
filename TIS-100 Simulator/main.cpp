@@ -627,12 +627,12 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 42656: // Sequence Reverser
-                // Node arrangement:
-                //     I
-                //  0  1  S  3
-                //  4  5  6  7
-                //  x  S 10 11
-                //        O
+        // Node arrangement:
+        //     I
+        //  0  1  S  3
+        //  4  5  6  7
+        //  x  S 10 11
+        //        O
         puzzle.badNodes = { 8 };
         puzzle.stackNodes = { 2, 9 };
         puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {} });
@@ -660,7 +660,35 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         break;
 
     case 43786: // Signal Multiplier
-                // this is as far as I've gotten in the game :)
+        // Node arrangement:
+        //     I  I
+        //  0  1  2  3
+        //  S  5  6  S
+        //  x  S 10 11
+        //        O
+        puzzle.badNodes = { 8 };
+        puzzle.stackNodes = { 4, 7 };
+        puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, RandomGenerator(PuzzleInputSize, 0, 9) });
+        puzzle.inputs.push_back(Puzzle::IO{ 2, Neighbor::UP, RandomGenerator(PuzzleInputSize, 0, 9) });
+        puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([&puzzle](size_t i, int* value)->bool
+        {
+            if (i >= PuzzleInputSize)
+                return false;
+
+            *value = puzzle.inputs[0].data[i] * puzzle.inputs[1].data[i];
+            return true;
+        }) });
+        break;
+
+    case 50370: // Image Test Pattern 1
+    case 51781: // Image Test Pattern 2
+    case 52544: // Exposure Mask Viewer
+    case 53897: // Histogram Viewer
+    case 60099: // Signal Window Filter
+    case 61212: // Signal Divider
+    case 62711: // Sequence Indexer
+    case 63534: // Sequence Sorter
+        // this is as far as I've gotten in the game :)
         throw std::exception("That puzzle hasn't been implemented yet.");
 
     default:
