@@ -236,24 +236,33 @@ static std::vector<int> PuzzleInputSimpleGenerator(const Puzzle::IO& input, std:
     return values;
 }
 
-bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *pNodeCount, int* pInstructionCount)
+bool Test(
+    int puzzleNumber,
+    const wchar_t* saveFilePath,
+    int* pCycleCount,
+    int *pNodeCount,
+    int* pInstructionCount,
+    std::string& puzzleName
+    )
 {
     Puzzle puzzle;
 
     switch (puzzleNumber)
     {
-    case -2: // Stack memory test.
+    case -2: // Stack memory test. Hardcoded program; ignores the save file path.
+        puzzleName = "[simulator debug] Stack Memory Test";
         puzzle.badNodes = {};
         puzzle.stackNodes = { 1 };
         puzzle.inputs.push_back(Puzzle::IO{ 0, Neighbor::UP, {1,2,3,4} });
         puzzle.outputs.push_back(Puzzle::IO{ 2, Neighbor::UP, {1,2,3,4} });
 
         puzzle.programs[0] = "MOV UP,RIGHT";
-        puzzle.programs[2] = "MOV LEFT,UP";
+        puzzle.programs[2] = "NOP\nMOV LEFT,UP";
 
         return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
 
     case -1: // Connectivity check. Hardcoded program; ignores the save file path.
+        puzzleName = "[simulator debug] Connectivity Check";
         puzzle.badNodes = {};
 
         puzzle.programs[0] = "MOV RIGHT,DOWN";
@@ -276,7 +285,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
 
         return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
 
-    case 150:   // Self-Test Diagnostic
+    case 150:
+        puzzleName = "Self-Test Diagnostic";
         // Node arrangement:
         //  I        I
         //  0  x  2  3
@@ -290,7 +300,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         puzzle.outputs.emplace_back(Puzzle::IO{ 11, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[1], [](int value) { return value; }) });
         break;
 
-    case 10981: // Signal Amplifier
+    case 10981:
+        puzzleName = "Signal Amplifier";
         // Node arrangement:
         //     I
         //  0  1  2  x
@@ -302,7 +313,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, PuzzleInputSimpleGenerator(puzzle.inputs[0], [](int value) { return value * 2; }) });
         break;
 
-    case 20176: // Differential Converter
+    case 20176:
+        puzzleName = "Differential Converter";
         // Node arrangement:
         //     I  I
         //  0  1  2  3
@@ -334,7 +346,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }) });
         break;
 
-    case 21340: // Signal Comparator
+    case 21340:
+        puzzleName = "Signal Comparator";
         // Node arrangement:
         //  I
         //  0  1  2  3
@@ -354,7 +367,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }) });
         break;
 
-    case 22280: // Signal Multiplexer
+    case 22280:
+        puzzleName = "Signal Multiplexer";
         // Node arrangement:
         //     I  I  I
         //  0  1  2  3
@@ -389,7 +403,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }) });
         break;
 
-    case 30647: // Sequence Generator
+    case 30647:
+        puzzleName = "Sequence Generator";
         // Node arrangement:
         //     I  I
         //  0  1  2  3
@@ -418,7 +433,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }) });
         break;
 
-    case 31904: // Sequence Counter
+    case 31904:
+        puzzleName = "Sequence Counter";
         // Node arrangement:
         //     I
         //  0  1  2  x
@@ -449,7 +465,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         puzzle.outputs[1].data.pop_back();
         break;
 
-    case 32050: // Signal Edge Detector
+    case 32050:
+        puzzleName = "Signal Edge Detector";
         // Node arrangement:
         //     I
         //  0  1  2  3
@@ -480,7 +497,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }) });
         break;
 
-    case 33762: // Interrupt Handler
+    case 33762:
+        puzzleName = "Interrupt Handler";
         // Node arrangement:
         //  I  I  I  I
         //  0  1  2  3
@@ -562,7 +580,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }
         break;
 
-    case 40196: // Signal Pattern Detector
+    case 40196:
+        puzzleName = "Signal Pattern Detector";
         // Node arrangement:
         //     I
         //  0  1  2  x
@@ -588,7 +607,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }
         break;
 
-    case 41427: // Sequence Peak Detector
+    case 41427:
+        puzzleName = "Sequence Peak Detector";
         // Node arrangement:
         //     I
         //  0  1  2  3
@@ -626,7 +646,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }
         break;
 
-    case 42656: // Sequence Reverser
+    case 42656:
+        puzzleName = "Sequence Reverser";
         // Node arrangement:
         //     I
         //  0  1  S  3
@@ -659,7 +680,8 @@ bool Test(int puzzleNumber, const wchar_t* saveFilePath, int* pCycleCount, int *
         }
         break;
 
-    case 43786: // Signal Multiplier
+    case 43786:
+        puzzleName = "Signal Multiplier";
         // Node arrangement:
         //     I  I
         //  0  1  2  3
@@ -733,11 +755,12 @@ int wmain(int argc, wchar_t** argv)
         int cycleCount = 0;
         int nodeCount = 0; 
         int instructionCount = 0;
+        std::string puzzleName;
         bool success;
 
         try
         {
-            success = Test(puzzleNumber, saveFilePath, &cycleCount, &nodeCount, &instructionCount);
+            success = Test(puzzleNumber, saveFilePath, &cycleCount, &nodeCount, &instructionCount, puzzleName);
         }
         catch (std::exception ex)
         {
@@ -746,7 +769,8 @@ int wmain(int argc, wchar_t** argv)
             return 1;
         }
 
-        std::cout << (success ? "success" : "failure") << " in "
+        std::cout << puzzleNumber << ": " << puzzleName << " - "
+            << (success ? "success" : "failure") << " in "
             << cycleCount << " cycles, "
             << nodeCount << " nodes, "
             << instructionCount << " instructions.\n";
