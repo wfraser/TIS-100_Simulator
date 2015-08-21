@@ -5,12 +5,26 @@
 #include "ComputeNode.h"
 #include "StackMemoryNode.h"
 
-static const size_t PuzzleInputSize = 39;
+static constexpr size_t PuzzleInputSize = 39;
+static constexpr size_t NodeGridWidth = 4;
+static constexpr size_t NodeGridHeight = 3;
+static constexpr size_t NodeGridCount = NodeGridWidth * NodeGridHeight;
 static std::default_random_engine g_RandomEngine;
 
+// Read a save file.
+//
+// Formal Parameters:
+//  path: path to the save file.
+//  programs: array of strings set to the corresponding assembly text for each node.
+//  badNodes: the indices of non-functional nodes in the puzzle.
+//  stackNodes: the indices of stack memory nodes in the puzzle.
+//
+// Indices in the programs array that are in badNodes and stackNodes will be skipped over and left
+// empty. (The indices are needed because the save file skips over them entirely and just writes
+// the working ComputeNode programs.)
 void ReadSaveFile(
     const wchar_t* path,
-    std::string programs[12],
+    std::string programs[NodeGridCount],
     const std::set<int>& badNodes,
     const std::set<int>& stackNodes
     )
@@ -52,35 +66,56 @@ void ReadSaveFile(
 class Puzzle
 {
 public:
-    std::string programs[12];
+    // Assembly code text for the ComputeNodes.
+    // There needs to be a corresponding ComputeNode at the same index, otherwise the program will
+    // not be applied.
+    std::string programs[NodeGridCount];
 
     struct IO
     {
+        // Node to which the input/output is connected.
         int toNode;
+
+        // The direction of the input/output relative to the node specified by toNode.
         Neighbor direction;
+
+        // For inputs, the data to feed as input.
+        // For outputs, the expected data used for verifying the program.
         std::vector<int> data;
     };
+
+    // Inputs and outputs.
     std::vector<IO> inputs, outputs;
 
+    // Indices of bad (non-working) nodes.
     std::set<int> badNodes;
+
+    // Indices of stack memory nodes.
     std::set<int> stackNodes;
 };
 
+// Run the program in the given puzzle against the puzzle described in the same.
+// Returns true if the output matches the expected data. Returns false if the data does not match.
+// Stores program statistics in the remaining formal parameters:
+//  pNumCycles: number of cycles to program halt, either due to matching output data, or the first
+//              mismatch.
+//  pNodeCount: the number of ComputeNodes that were programmed with at least one instruction.
+//  pInstructionCount: the total number of instructions programmed into all ComputeNodes.
 bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pInstructionCount)
 {
     std::vector<ComputeNode> computeNodes;
     std::vector<StackMemoryNode> stackNodes;
-    std::vector<INode*> nodeGrid(12);
+    std::vector<INode*> nodeGrid(NodeGridCount);
 
     // Reserve enough space so that the elements won't ever get relocated.
-    computeNodes.reserve(12);
-    stackNodes.reserve(12);
+    computeNodes.reserve(NodeGridCount);
+    stackNodes.reserve(NodeGridCount);
 
-    for (int row = 0; row < 3; ++row)
+    for (int row = 0; row < NodeGridHeight; ++row)
     {
-        for (int col = 0; col < 4; ++col)
+        for (int col = 0; col < NodeGridWidth; ++col)
         {
-            int index = row * 4 + col;
+            int index = row * NodeGridWidth + col;
 
             INode** cur = &nodeGrid[index];
 
@@ -99,7 +134,7 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
             if (col > 0)
                 INode::Join(nodeGrid[index - 1], Neighbor::RIGHT, *cur);
             if (row > 0)
-                INode::Join(nodeGrid[index - 4], Neighbor::DOWN, *cur);
+                INode::Join(nodeGrid[index - NodeGridWidth], Neighbor::DOWN, *cur);
         }
     }
 
@@ -197,6 +232,10 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
     }
 }
 
+// Generate data according to a given lambda.
+// The lambda is given an index, and stores the value in the given int pointer.
+// The lambda returns true if it generates a value; false if no more data should be generated.
+// The lambda is called with the indices in order, starting at zero.
 static std::vector<int> FunctionGenerator(std::function<bool(size_t, int*)> fn)
 {
     std::vector<int> values;
@@ -211,6 +250,7 @@ static std::vector<int> FunctionGenerator(std::function<bool(size_t, int*)> fn)
     return values;
 }
 
+// Generate a given number of random integers, in the given range.
 static std::vector<int> RandomGenerator(size_t count, int min, int max)
 {
     std::uniform_int_distribution<int> distribution(min, max);
@@ -226,6 +266,8 @@ static std::vector<int> RandomGenerator(size_t count, int min, int max)
     });
 }
 
+// Transforms the data in one IO into another data set, according to a lambda.
+// The lambda is given an integer, and returns the desired transformation of that integer.
 static std::vector<int> PuzzleInputSimpleGenerator(const Puzzle::IO& input, std::function<int(int)> fn)
 {
     std::vector<int> values;
@@ -236,6 +278,20 @@ static std::vector<int> PuzzleInputSimpleGenerator(const Puzzle::IO& input, std:
     return values;
 }
 
+// Run a test on a saved TIS-100 program.
+//
+// Formal Parameters:
+//  puzzleNumber: the puzzle number to test
+//  saveFilePath: path to the saved program
+//  pCycleCount: receives the number of cycles the program ran for, either to successful
+//               completion, or until the first mismatched output value.
+//  pNodeCount: receives the number of ComputeNodes that were programmed with at least one
+//              instruction.
+//  pInstructionCount: receives the total number of instructions programmed into all
+//              ComputeNodes.
+//  puzzleName: is set to the name of the puzzle specified by puzzleNumber.
+//
+// Returns true if the program produced the desired output, or false if the output did not match.
 bool Test(
     int puzzleNumber,
     const wchar_t* saveFilePath,
