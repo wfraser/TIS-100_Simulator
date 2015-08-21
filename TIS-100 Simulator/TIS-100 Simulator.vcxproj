@@ -71,10 +71,13 @@
     <ClInclude Include="ComputeNode.h" />
     <ClInclude Include="InputNode.h" />
     <ClInclude Include="IOChannel.h" />
+    <ClInclude Include="OutputBase.h" />
     <ClInclude Include="OutputNode.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Node.h" />
     <ClInclude Include="StackMemoryNode.h" />
+    <ClInclude Include="Grid.h" />
+    <ClInclude Include="VisualizationNode.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ComputeNode.cpp" />
@@ -82,9 +85,11 @@
     <ClCompile Include="IOChannel.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Node.cpp" />
+    <ClCompile Include="OutputBase.cpp" />
     <ClCompile Include="OutputNode.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="StackMemoryNode.cpp" />
+    <ClCompile Include="VisualizationNode.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

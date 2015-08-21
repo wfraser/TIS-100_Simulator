@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Node.h"
 #include "InputNode.h"
+#include "OutputBase.h"
 #include "OutputNode.h"
 #include "ComputeNode.h"
 #include "StackMemoryNode.h"
