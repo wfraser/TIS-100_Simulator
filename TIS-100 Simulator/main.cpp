@@ -5,11 +5,16 @@
 #include "OutputNode.h"
 #include "ComputeNode.h"
 #include "StackMemoryNode.h"
+#include "Grid.h"
+#include "VisualizationNode.h"
 
 static constexpr size_t PuzzleInputSize = 39;
 static constexpr size_t NodeGridWidth = 4;
 static constexpr size_t NodeGridHeight = 3;
 static constexpr size_t NodeGridCount = NodeGridWidth * NodeGridHeight;
+static constexpr size_t VisualizationWidth = 30;
+static constexpr size_t VisualizationHeight = 18;
+
 static std::default_random_engine g_RandomEngine;
 
 // Read a save file.
@@ -86,7 +91,7 @@ public:
     };
 
     // Inputs and outputs.
-    std::vector<IO> inputs, outputs;
+    std::vector<IO> inputs, outputs, visualization;
 
     // Indices of bad (non-working) nodes.
     std::set<int> badNodes;
@@ -141,22 +146,38 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
 
     std::vector<InputNode> inputNodes;
     std::vector<OutputNode> outputNodes;
+    std::vector<VisualizationNode> vizNodes;
+    std::vector<INode*> nodes;
 
     inputNodes.reserve(puzzle.inputs.size());
     for (const Puzzle::IO& io : puzzle.inputs)
     {
         inputNodes.emplace_back(io.data);
-        INode::Join(nodeGrid[io.toNode], io.direction, &inputNodes.back());
+        INode* node = &inputNodes.back();
+        INode::Join(nodeGrid[io.toNode], io.direction, node);
+        nodes.push_back(node);
+        node->Initialize();
     }
 
     outputNodes.reserve(puzzle.outputs.size());
     for (const Puzzle::IO& io : puzzle.outputs)
     {
         outputNodes.emplace_back();
-        INode::Join(nodeGrid[io.toNode], io.direction, &outputNodes.back());
+        INode* node = &outputNodes.back();
+        INode::Join(nodeGrid[io.toNode], io.direction, node);
+        nodes.push_back(node);
+        node->Initialize();
     }
 
-    std::vector<INode*> nodes;
+    vizNodes.reserve(puzzle.visualization.size());
+    for (const Puzzle::IO& io : puzzle.visualization)
+    {
+        vizNodes.emplace_back(VisualizationWidth, VisualizationHeight);
+        INode* node = &vizNodes.back();
+        INode::Join(nodeGrid[io.toNode], io.direction, node);
+        nodes.push_back(node);
+        node->Initialize();
+    }
 
     for (size_t i = 0, n = computeNodes.size(); i < n; i++)
     {
@@ -172,24 +193,6 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
             (*pInstructionCount) += instructions;
             ++(*pNodeCount);
         }
-    }
-
-    for (InputNode& node : inputNodes)
-    {
-        node.Initialize();
-        nodes.push_back(&node);
-    }
-
-    for (OutputNode& node : outputNodes)
-    {
-        node.Initialize();
-        nodes.push_back(&node);
-    }
-
-    for (StackMemoryNode& node : stackNodes)
-    {
-        node.Initialize();
-        nodes.push_back(&node);
     }
 
     *pNumCycles = 0;
@@ -208,7 +211,22 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
                 outputFinished = false;
         }
 
-        if (outputFinished)
+        bool vizMatch = true;
+        for (size_t i = 0, n = puzzle.visualization.size(); i < n; ++i)
+        {
+            for (size_t j = 0, n = VisualizationWidth * VisualizationHeight; j < n; ++j)
+            {
+                if (vizNodes[i].Grid[j] != puzzle.visualization[i].data[j])
+                {
+                    vizMatch = false;
+                    break;
+                }
+            }
+            if (!vizMatch)
+                break;
+        }
+
+        if (outputFinished && vizMatch)
         {
             return true;
         }
@@ -759,8 +777,48 @@ bool Test(
         }) });
         break;
 
-    case 50370: // Image Test Pattern 1
-    case 51781: // Image Test Pattern 2
+    case 50370:
+        puzzleName = "Image Test Pattern 1";
+        // Node arrangement:
+        //  0  1  2  3
+        //  x  5  6  7
+        //  8  9 10 11
+        //        V
+        puzzle.badNodes = { 4 };
+        puzzle.visualization.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([](size_t i, int* value)->bool
+        {
+            if (i >= VisualizationWidth * VisualizationHeight)
+                return false;
+
+            *value = 3;
+            return true;
+        }) });
+        break;
+
+    case 51781:
+        puzzleName = "Image Test Pattern 2";
+        // Node arrangement:
+        //  x  1  2  3
+        //  4  5  6  7
+        //  8  9 10 11
+        //        V
+        puzzle.badNodes = { 0 };
+        puzzle.visualization.push_back(Puzzle::IO{ 10, Neighbor::DOWN, FunctionGenerator([](size_t i, int* value)->bool {
+            if (i >= VisualizationWidth * VisualizationHeight)
+                return false;
+
+            if ((i / VisualizationWidth) % 2 == 0)
+            {
+                *value = (((i % VisualizationWidth) % 2) == 0) ? 3 : 0;
+            }
+            else
+            {
+                *value = (((i % VisualizationWidth) % 2) == 1) ? 3 : 0;
+            }
+            return true;
+        }) });
+        break;
+
     case 52544: // Exposure Mask Viewer
     case 53897: // Histogram Viewer
     case 60099: // Signal Window Filter

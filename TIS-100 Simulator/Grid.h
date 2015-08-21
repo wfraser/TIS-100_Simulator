@@ -30,11 +30,17 @@ public:
     void Clear()
     {
         m_data.clear();
+        m_data.resize(m_width * m_height);
     }
 
     T& operator[](std::pair<size_t, size_t> pair)
     {
-        return m_data[pair.second * m_height + pair.first];
+        return m_data[pair.second * m_width + pair.first];
+    }
+
+    T& operator[](size_t index)
+    {
+        return m_data[index];
     }
 
 #pragma region row-major iterators
