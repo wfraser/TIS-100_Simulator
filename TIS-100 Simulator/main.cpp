@@ -216,7 +216,12 @@ bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pIn
         {
             for (size_t j = 0, n = VisualizationWidth * VisualizationHeight; j < n; ++j)
             {
-                if (vizNodes[i].Grid[j] != puzzle.visualization[i].data[j])
+                int expected = 0;
+                // allow under-sizing the expected vector
+                if (puzzle.visualization[i].data.size() > j)
+                    expected = puzzle.visualization[i].data[j];
+
+                if (vizNodes[i].Grid[j] != expected)
                 {
                     vizMatch = false;
                     break;
@@ -324,6 +329,15 @@ bool Test(
 
     switch (puzzleNumber)
     {
+    case -3:
+        puzzleName = "[simulator debug] Visualization Node Test";
+        puzzle.badNodes = {};
+        puzzle.visualization.push_back(Puzzle::IO{ 0, Neighbor::UP, {3,3,3,3,3} });
+        puzzle.programs[0] = "MOV 0,UP\nMOV 0,UP\nMOV 3,UP\nJRO -1";
+        puzzle.programs[1] = "ADD 1";
+
+        return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
+
     case -2: // Stack memory test. Hardcoded program; ignores the save file path.
         puzzleName = "[simulator debug] Stack Memory Test";
         puzzle.badNodes = {};
