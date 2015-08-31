@@ -3,7 +3,6 @@
 class StackMemoryNode : public INode
 {
 private:
-    bool m_readReady;
     bool m_writeReady;
     std::shared_ptr<IOChannel> m_neighbors[static_cast<size_t>(Neighbor::COUNT)];
     std::vector<int> m_data;
@@ -14,7 +13,6 @@ public:
     virtual void Initialize();
 
     virtual void Read();
-    virtual void ReadComplete(int value);
     virtual void Compute();
     virtual void Write();
     virtual void WriteComplete();

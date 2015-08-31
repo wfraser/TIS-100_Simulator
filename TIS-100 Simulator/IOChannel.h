@@ -6,7 +6,6 @@ private:
     struct Endpoint
     {
         INode* node;
-        bool readPending;
         bool writePending;
         int sentValue;
     };
@@ -17,8 +16,7 @@ public:
     IOChannel(INode* a, INode* b);
 
     void Write(INode* senderNode, int value);
-    void Read(INode* receiverNode);
-    void CancelRead(INode* receiverNode);
+    bool Read(INode* receiverNode, int* pValue);
     void CancelWrite(INode* senderNode);
 
 protected:

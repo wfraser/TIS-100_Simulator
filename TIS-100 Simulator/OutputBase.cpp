@@ -4,7 +4,6 @@
 #include "IOChannel.h"
 
 OutputBase::OutputBase()
-    : m_state(State::Run)
 {}
 
 void OutputBase::SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO)
@@ -19,32 +18,17 @@ void OutputBase::SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spI
 }
 
 void OutputBase::Initialize()
-{
-    m_state = State::Run;
-}
+{}
 
 void OutputBase::Read()
 {
-    if (m_state == State::Run)
+    if (m_spIO != nullptr)
     {
-        m_state = State::Read;
-        if (m_spIO != nullptr)
+        int value;
+        if (m_spIO->Read(this, &value))
         {
-            m_spIO->Read(this);
+            ReadData(value);
         }
-    }
-}
-
-void OutputBase::ReadComplete(int value)
-{
-    if (m_state == State::Read)
-    {
-        m_state = State::Run;
-        ReadData(value);
-    }
-    else
-    {
-        throw std::exception("unexpected ReadComplete");
     }
 }
 

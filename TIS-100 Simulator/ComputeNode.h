@@ -98,7 +98,6 @@ private:
         Unprogrammed,
         Run,
         Read,
-        ReadComplete,
         Write,
         WriteComplete,
     };
@@ -106,7 +105,6 @@ private:
     static int s_nextNodeId;
 
 private:
-    int m_nodeId;
     State m_state;
     size_t m_pc;
     int m_acc;
@@ -127,7 +125,6 @@ public:
     virtual void Initialize();
 
     virtual void Read();
-    virtual void ReadComplete(int value);
     virtual void Compute();
     virtual void Write();
     virtual void WriteComplete();

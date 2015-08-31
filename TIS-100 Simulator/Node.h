@@ -27,6 +27,8 @@ class IOChannel;
 class INode
 {
 public:
+    int NodeId;
+
     virtual void SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO) = 0;
     virtual void Initialize() = 0;
     virtual void Read() = 0;
@@ -34,8 +36,10 @@ public:
     virtual void Write() = 0;
     virtual void Step() = 0;
 
-    virtual void ReadComplete(int value) = 0;
     virtual void WriteComplete() = 0;
 
     static void Join(INode* nodeA, Neighbor directionOfBRelativeToA, INode* nodeB);
+
+protected:
+    INode() : NodeId(-1) {}
 };

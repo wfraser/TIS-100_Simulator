@@ -4,7 +4,7 @@
 #include "IOChannel.h"
 
 #ifdef DEBUG_OUTPUT
-#define DEBUG(...) printf("compute%d: ", m_nodeId), printf(__VA_ARGS__), printf("\n")
+#define DEBUG(...) printf("compute%d: ", NodeId), printf(__VA_ARGS__), printf("\n")
 #else
 #define DEBUG(...) (0)
 #endif
@@ -324,11 +324,8 @@ std::string Instruction::ToString()
     return out.str();
 }
 
-int ComputeNode::s_nextNodeId = 0;
-
 ComputeNode::ComputeNode()
-    : m_nodeId(s_nextNodeId++)
-    , m_state(State::Unprogrammed)
+    : m_state(State::Unprogrammed)
     , m_pc(0)
     , m_acc(0)
     , m_bak(0)
@@ -547,13 +544,7 @@ std::shared_ptr<IOChannel>& ComputeNode::IO(Target target)
 
 void ComputeNode::Read()
 {
-    if (m_state == State::ReadComplete)
-    {
-        DEBUG("Read(): pending read completed");
-        m_state = State::Run;
-        return;
-    }
-    else if (m_state != State::Run)
+    if (m_state != State::Read && m_state != State::Run)
     {
         DEBUG("Read(): blocked");
         return;
@@ -618,7 +609,8 @@ port_read:
         if (spIO != nullptr)
         {
             DEBUG("reading from target %s", TargetToString(readTarget).c_str());
-            spIO->Read(this);
+            if (spIO->Read(this, &m_temp))
+                m_state = State::Run;
         }
         else
             DEBUG("nobody to read from at %s", TargetToString(readTarget).c_str());
@@ -634,7 +626,8 @@ port_read:
             if (spIO != nullptr)
             {
                 DEBUG("reading from target %s", TargetToString(readTarget).c_str());
-                spIO->Read(this);
+                if (spIO->Read(this, &m_temp))
+                    m_state = State::Run;
             }
         }
         break;
@@ -654,36 +647,6 @@ port_read:
             readTarget = m_last;
             goto port_read;
         }
-    }
-}
-
-void ComputeNode::ReadComplete(int value)
-{
-    switch (m_state)
-    {
-    case State::Read:
-        DEBUG("read complete");
-        m_temp = value;
-        m_state = State::ReadComplete;
-        if ((m_instructions[m_pc].argsType == InstructionArgsType::Target)
-            && (m_instructions[m_pc].args.arg1.target == Target::ANY))
-        {
-            // Cancel the other reads.
-            // This is not thread-safe, and so assumes the nodes are executed sequentially.
-            DEBUG("cancelling other reads");
-            for (Target target : { Target::UP, Target::DOWN, Target::LEFT, Target::RIGHT })
-            {
-                std::shared_ptr<IOChannel> spIO = IO(target);
-                if (spIO != nullptr)
-                {
-                    DEBUG("cancelling read from %s", TargetToString(target).c_str());
-                    spIO->CancelRead(this);
-                }
-            }
-        }
-        break;
-    default:
-        throw std::exception("unexpected ReadComplete");
     }
 }
 
@@ -841,7 +804,6 @@ void ComputeNode::Step()
 
     case State::Unprogrammed:
     case State::Read:
-    case State::ReadComplete:
     case State::Write:
         DEBUG("Step(): blocked");
         return;

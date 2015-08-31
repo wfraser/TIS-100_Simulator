@@ -5,8 +5,7 @@
 #include <assert.h>
 
 StackMemoryNode::StackMemoryNode()
-    : m_readReady(true)
-    , m_writeReady(true)
+    : m_writeReady(true)
     , m_neighbors()
 {}
 
@@ -22,43 +21,28 @@ void StackMemoryNode::Initialize()
 
 void StackMemoryNode::Read()
 {
-    if (!m_readReady)
-        return;
-    m_readReady = false;
-
     for (size_t i = 0; i < static_cast<size_t>(Neighbor::COUNT); ++i)
     {
         std::shared_ptr<IOChannel>& spIO = m_neighbors[i];
         if (spIO != nullptr)
         {
-            spIO->Read(this);
-
-            if (m_readReady)
+            int value;
+            if (spIO->Read(this, &value))
             {
-                // A read succeeded; don't bother attempting any others.
+                m_data.push_back(value);
+                for (const std::shared_ptr<IOChannel>& spIO : m_neighbors)
+                {
+                    if (spIO != nullptr)
+                        spIO->CancelWrite(this);
+                }
+
+                m_writeReady = true;
+
+                // Don't bother attempting any other reads.
                 break;
             }
         }
     }
-}
-
-void StackMemoryNode::ReadComplete(int value)
-{
-    assert(!m_readReady);
-
-    m_data.push_back(value);
-    for (size_t i = 0; i < static_cast<size_t>(Neighbor::COUNT); ++i)
-    {
-        std::shared_ptr<IOChannel>& spIO = m_neighbors[i];
-        if (spIO != nullptr)
-        {
-            spIO->CancelRead(this);
-            spIO->CancelWrite(this);
-        }
-    }
-
-    m_readReady = true;
-    m_writeReady = true;
 }
 
 void StackMemoryNode::Compute()
