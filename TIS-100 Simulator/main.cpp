@@ -854,35 +854,15 @@ bool Test(
     return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
 }
 
-int wmain(int argc, wchar_t** argv)
+int DoTest(int puzzleNumber, const wchar_t* saveFilePath)
 {
-    int puzzleNumber;
-    const wchar_t* saveFilePath;
-    if (argc != 3)
-    {
-        std::cout << "usage: " << argv[0] << " <puzzle number> <save file>\n"
-            "\n"
-            "look for saves in "
-            R"(%USERPROFILE%\Documents\my games\TIS-100\<random number>\save)"
-            "\n";
-        return -1;
-    }
-    else
-    {
-        if (0 == swscanf_s(argv[1], L"%u", &puzzleNumber))
-        {
-            std::cout << "invalid puzzle number\n";
-        }
-        saveFilePath = argv[2];
-    }
-
     // Use the default seed to produce the same sequence every time (for debugability).
     g_RandomEngine.seed();
 
     for (int testRun = 0; testRun < 3; ++testRun)
     {
         int cycleCount = 0;
-        int nodeCount = 0; 
+        int nodeCount = 0;
         int instructionCount = 0;
         std::string puzzleName;
         bool success;
@@ -903,5 +883,58 @@ int wmain(int argc, wchar_t** argv)
             << cycleCount << " cycles, "
             << nodeCount << " nodes, "
             << instructionCount << " instructions.\n";
+    }
+
+    return 0;
+}
+
+int wmain(int argc, wchar_t** argv)
+{
+    if ((argc == 3) && (std::wstring(argv[1]) == L"all"))
+    {
+        using namespace std::tr2::sys;
+
+        for (const path& entry : directory_iterator(argv[2]))
+        {
+            std::wstring saveFilename(entry.filename().generic_wstring());
+
+            auto pos = saveFilename.find_first_of(L'.');
+            if (pos == saveFilename.npos)
+                continue;
+
+            std::wstring numberPart(saveFilename.substr(0, pos));
+            wchar_t* end;
+            int puzzleNumber = wcstol(numberPart.c_str(), &end, 10);
+
+            if (*end == L'\0')
+            {
+                std::wcout << L"Save file: " << saveFilename << std::endl;
+                DoTest(puzzleNumber, entry.c_str());
+            }
+        }
+
+        return 0;
+    }
+    else if (argc == 3)
+    {
+        int puzzleNumber;
+        const wchar_t* saveFilePath;
+
+        if (0 == swscanf_s(argv[1], L"%u", &puzzleNumber))
+        {
+            std::cout << "invalid puzzle number\n";
+        }
+        saveFilePath = argv[2];
+
+        return DoTest(puzzleNumber, saveFilePath);
+    }
+    else
+    {
+        std::cout << "usage: " << argv[0] << " <puzzle number> <save file>\n"
+            "\n"
+            "look for saves in "
+            R"(%USERPROFILE%\Documents\my games\TIS-100\<random number>\save)"
+            "\n";
+        return -1;
     }
 }
