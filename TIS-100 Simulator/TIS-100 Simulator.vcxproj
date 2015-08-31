@@ -68,6 +68,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="ComputeGrid.h" />
     <ClInclude Include="ComputeNode.h" />
     <ClInclude Include="InputNode.h" />
     <ClInclude Include="IOChannel.h" />
@@ -75,6 +76,7 @@
     <ClInclude Include="OutputNode.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Node.h" />
+    <ClInclude Include="Puzzle.h" />
     <ClInclude Include="StackMemoryNode.h" />
     <ClInclude Include="Grid.h" />
     <ClInclude Include="VisualizationNode.h" />

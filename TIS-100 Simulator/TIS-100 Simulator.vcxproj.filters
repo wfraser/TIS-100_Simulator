@@ -45,6 +45,12 @@
     <ClInclude Include="OutputBase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ComputeGrid.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Puzzle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="InputNode.cpp">

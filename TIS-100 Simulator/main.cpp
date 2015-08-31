@@ -7,6 +7,8 @@
 #include "StackMemoryNode.h"
 #include "Grid.h"
 #include "VisualizationNode.h"
+#include "Puzzle.h"
+#include "ComputeGrid.h"
 
 static constexpr size_t PuzzleInputSize = 39;
 static constexpr size_t NodeGridWidth = 4;
@@ -16,6 +18,8 @@ static constexpr size_t VisualizationWidth = 30;
 static constexpr size_t VisualizationHeight = 18;
 
 static std::default_random_engine g_RandomEngine;
+
+typedef PuzzleBase<NodeGridCount> Puzzle;
 
 // Read a save file.
 //
@@ -69,37 +73,6 @@ void ReadSaveFile(
     }
 }
 
-class Puzzle
-{
-public:
-    // Assembly code text for the ComputeNodes.
-    // There needs to be a corresponding ComputeNode at the same index, otherwise the program will
-    // not be applied.
-    std::string programs[NodeGridCount];
-
-    struct IO
-    {
-        // Node to which the input/output is connected.
-        int toNode;
-
-        // The direction of the input/output relative to the node specified by toNode.
-        Neighbor direction;
-
-        // For inputs, the data to feed as input.
-        // For outputs, the expected data used for verifying the program.
-        std::vector<int> data;
-    };
-
-    // Inputs and outputs.
-    std::vector<IO> inputs, outputs, visualization;
-
-    // Indices of bad (non-working) nodes.
-    std::set<int> badNodes;
-
-    // Indices of stack memory nodes.
-    std::set<int> stackNodes;
-};
-
 // Run the program in the given puzzle against the puzzle described in the same.
 // Returns true if the output matches the expected data. Returns false if the data does not match.
 // Stores program statistics in the remaining formal parameters:
@@ -109,151 +82,24 @@ public:
 //  pInstructionCount: the total number of instructions programmed into all ComputeNodes.
 bool TestPuzzle(const Puzzle& puzzle, int* pNumCycles, int* pNodeCount, int* pInstructionCount)
 {
-    std::vector<ComputeNode> computeNodes;
-    std::vector<StackMemoryNode> stackNodes;
-    std::vector<INode*> nodeGrid(NodeGridCount);
-
-    // Reserve enough space so that the elements won't ever get relocated.
-    computeNodes.reserve(NodeGridCount);
-    stackNodes.reserve(NodeGridCount);
-
-    for (int row = 0; row < NodeGridHeight; ++row)
-    {
-        for (int col = 0; col < NodeGridWidth; ++col)
-        {
-            int index = row * NodeGridWidth + col;
-
-            INode** cur = &nodeGrid[index];
-
-            if (puzzle.stackNodes.find(index) != puzzle.stackNodes.end())
-            {
-                stackNodes.emplace_back();
-                *cur = &stackNodes.back();
-            }
-            else
-            {
-                computeNodes.emplace_back();
-                *cur = &computeNodes.back();
-                computeNodes.back().Assemble(puzzle.programs[index]);
-            }
-
-            if (col > 0)
-                INode::Join(nodeGrid[index - 1], Neighbor::RIGHT, *cur);
-            if (row > 0)
-                INode::Join(nodeGrid[index - NodeGridWidth], Neighbor::DOWN, *cur);
-        }
-    }
-
-    std::vector<InputNode> inputNodes;
-    std::vector<OutputNode> outputNodes;
-    std::vector<VisualizationNode> vizNodes;
-    std::vector<INode*> nodes;
-
-    inputNodes.reserve(puzzle.inputs.size());
-    for (const Puzzle::IO& io : puzzle.inputs)
-    {
-        inputNodes.emplace_back(io.data);
-        INode* node = &inputNodes.back();
-        INode::Join(nodeGrid[io.toNode], io.direction, node);
-        nodes.push_back(node);
-        node->Initialize();
-    }
-
-    outputNodes.reserve(puzzle.outputs.size());
-    for (const Puzzle::IO& io : puzzle.outputs)
-    {
-        outputNodes.emplace_back();
-        INode* node = &outputNodes.back();
-        INode::Join(nodeGrid[io.toNode], io.direction, node);
-        nodes.push_back(node);
-        node->Initialize();
-    }
-
-    vizNodes.reserve(puzzle.visualization.size());
-    for (const Puzzle::IO& io : puzzle.visualization)
-    {
-        vizNodes.emplace_back(VisualizationWidth, VisualizationHeight);
-        INode* node = &vizNodes.back();
-        INode::Join(nodeGrid[io.toNode], io.direction, node);
-        nodes.push_back(node);
-        node->Initialize();
-    }
-
-    for (size_t i = 0, n = computeNodes.size(); i < n; i++)
-    {
-        ComputeNode& node = computeNodes[i];
-
-        int instructions = node.InstructionCount();
-        if (instructions > 0)
-        {
-            // Only start and add the compute node if it has a program to execute.
-            node.Initialize();
-            nodes.push_back(&node);
-
-            (*pInstructionCount) += instructions;
-            ++(*pNodeCount);
-        }
-    }
+    ComputeGrid<NodeGridHeight, NodeGridWidth> grid(puzzle);
 
     *pNumCycles = 0;
-    for (;;)
+    grid.Initialize(pInstructionCount, pNodeCount);
+
+    bool isFailure = false;
+    while (!grid.IsFinished(puzzle, &isFailure))
     {
-        bool outputFinished = true;
-        for (size_t i = 0, n = puzzle.outputs.size(); i < n; ++i)
-        {
-            const std::vector<int>& actual = outputNodes[i].Data;
-            const std::vector<int>& expected = puzzle.outputs[i].data;
-
-            if (!actual.empty() && (actual.back() != expected[actual.size() - 1]))
-                return false;
-
-            if (actual.size() != expected.size())
-                outputFinished = false;
-        }
-
-        bool vizMatch = true;
-        for (size_t i = 0, n = puzzle.visualization.size(); i < n; ++i)
-        {
-            for (size_t j = 0, n = VisualizationWidth * VisualizationHeight; j < n; ++j)
-            {
-                int expected = 0;
-                // allow under-sizing the expected vector
-                if (puzzle.visualization[i].data.size() > j)
-                    expected = puzzle.visualization[i].data[j];
-
-                if (vizNodes[i].Grid[j] != expected)
-                {
-                    vizMatch = false;
-                    break;
-                }
-            }
-            if (!vizMatch)
-                break;
-        }
-
-        if (outputFinished && vizMatch)
-        {
-            return true;
-        }
-
         ++(*pNumCycles);
 
 #ifdef DEBUG_OUTPUT
         printf("\t\t\t\t\t\t\tcycle %d\n", *pNumCycles);
 #endif
 
-        for (auto& node : nodes)
-            node->Read();
-
-        for (auto& node : nodes)
-            node->Compute();
-
-        for (auto& node : nodes)
-            node->Write();
-
-        for (auto& node : nodes)
-            node->Step();
+        grid.Step();
     }
+
+    return !isFailure;
 }
 
 // Generate data according to a given lambda.
@@ -316,12 +162,8 @@ static std::vector<int> PuzzleInputSimpleGenerator(const Puzzle::IO& input, std:
 //  puzzleName: is set to the name of the puzzle specified by puzzleNumber.
 //
 // Returns true if the program produced the desired output, or false if the output did not match.
-bool Test(
+Puzzle GetPuzzle(
     int puzzleNumber,
-    const wchar_t* saveFilePath,
-    int* pCycleCount,
-    int *pNodeCount,
-    int* pInstructionCount,
     std::string& puzzleName
     )
 {
@@ -333,12 +175,13 @@ bool Test(
         puzzleName = "[simulator debug] Visualization Node Test";
         puzzle.badNodes = {};
         puzzle.visualization.push_back(Puzzle::IO{ 0, Neighbor::UP, {3,3,3,3,3} });
+        puzzle.visualizationWidth = VisualizationWidth;
+        puzzle.visualizationHeight = VisualizationHeight;
         puzzle.programs[0] = "MOV 0,UP\nMOV 0,UP\nMOV 3,UP\nJRO -1";
         puzzle.programs[1] = "ADD 1";
+        break;
 
-        return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
-
-    case -2: // Stack memory test. Hardcoded program; ignores the save file path.
+    case -2:
         puzzleName = "[simulator debug] Stack Memory Test";
         puzzle.badNodes = {};
         puzzle.stackNodes = { 1 };
@@ -347,10 +190,9 @@ bool Test(
 
         puzzle.programs[0] = "MOV UP,RIGHT";
         puzzle.programs[2] = "NOP\nMOV LEFT,UP";
+        break;
 
-        return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
-
-    case -1: // Connectivity check. Hardcoded program; ignores the save file path.
+    case -1:
         puzzleName = "[simulator debug] Connectivity Check";
         puzzle.badNodes = {};
 
@@ -371,8 +213,7 @@ bool Test(
 
         puzzle.inputs.push_back(Puzzle::IO{ 1, Neighbor::UP, {1, 2, 3, 4} });
         puzzle.outputs.push_back(Puzzle::IO{ 10, Neighbor::DOWN, { 10, 20, 30, 40 } });
-
-        return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
+        break;
 
     case 150:
         puzzleName = "Self-Test Diagnostic";
@@ -845,17 +686,45 @@ bool Test(
     default:
         throw std::exception("Unknown puzzle number.");
     }
+    
+    return puzzle;
+}
 
-    ReadSaveFile(saveFilePath,
-        puzzle.programs,
-        puzzle.badNodes,
-        puzzle.stackNodes);
+bool Test(
+    const Puzzle& puzzle,
+    ComputeGrid<NodeGridHeight, NodeGridWidth>& grid,
+    int* pCycleCount,
+    int* pInstructionCount,
+    int* pNodeCount
+    )
+{
+    grid.Initialize(pInstructionCount, pNodeCount);
 
-    return TestPuzzle(puzzle, pCycleCount, pNodeCount, pInstructionCount);
+    bool isFailure = false;
+    while (!grid.IsFinished(puzzle, &isFailure))
+    {
+        ++(*pCycleCount);
+
+#ifdef DEBUG_OUTPUT
+        printf("\t\t\t\t\t\t\tcycle %d\n", cycleCount);
+#endif
+
+        grid.Step();
+    }
+
+    return !isFailure;
 }
 
 int DoTest(int puzzleNumber, const wchar_t* saveFilePath)
 {
+    std::string puzzleName;
+    Puzzle puzzle = GetPuzzle(puzzleNumber, puzzleName);
+
+    if (puzzleNumber > 0)
+        ReadSaveFile(saveFilePath, puzzle.programs, puzzle.badNodes, puzzle.stackNodes);
+
+    ComputeGrid<NodeGridHeight, NodeGridWidth> grid(puzzle);
+
     // Use the default seed to produce the same sequence every time (for debugability).
     g_RandomEngine.seed();
 
@@ -864,12 +733,11 @@ int DoTest(int puzzleNumber, const wchar_t* saveFilePath)
         int cycleCount = 0;
         int nodeCount = 0;
         int instructionCount = 0;
-        std::string puzzleName;
-        bool success;
+        bool success = false;
 
         try
         {
-            success = Test(puzzleNumber, saveFilePath, &cycleCount, &nodeCount, &instructionCount, puzzleName);
+            success = Test(puzzle, grid, &cycleCount, &instructionCount, &nodeCount);
         }
         catch (std::exception ex)
         {
