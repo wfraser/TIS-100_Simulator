@@ -148,20 +148,6 @@ static std::vector<int> PuzzleInputSimpleGenerator(const Puzzle::IO& input, std:
     return values;
 }
 
-// Run a test on a saved TIS-100 program.
-//
-// Formal Parameters:
-//  puzzleNumber: the puzzle number to test
-//  saveFilePath: path to the saved program
-//  pCycleCount: receives the number of cycles the program ran for, either to successful
-//               completion, or until the first mismatched output value.
-//  pNodeCount: receives the number of ComputeNodes that were programmed with at least one
-//              instruction.
-//  pInstructionCount: receives the total number of instructions programmed into all
-//              ComputeNodes.
-//  puzzleName: is set to the name of the puzzle specified by puzzleNumber.
-//
-// Returns true if the program produced the desired output, or false if the output did not match.
 Puzzle GetPuzzle(
     int puzzleNumber,
     std::string& puzzleName
@@ -690,7 +676,21 @@ Puzzle GetPuzzle(
     return puzzle;
 }
 
-bool Test(
+// Run a TIS-100 program and test against desired output.
+//
+// Formal Parameters:
+//  puzzle: the puzzle to test.
+//  grid: assembled and programmed node grid corresponding to the puzzle.
+//  pCycleCount: receives the number of cycles the program ran for, either to successful
+//               completion, or until the first mismatched output value.
+//  pNodeCount: receives the number of ComputeNodes that were programmed with at least one
+//              instruction.
+//  pInstructionCount: receives the total number of instructions programmed into all
+//              ComputeNodes.
+//  puzzleName: is set to the name of the puzzle specified by puzzleNumber.
+//
+// Returns true if the program produced the desired output, or false if the output did not match.
+bool RunProgramAndTest(
     const Puzzle& puzzle,
     ComputeGrid<NodeGridHeight, NodeGridWidth>& grid,
     int* pCycleCount,
@@ -737,7 +737,7 @@ int DoTest(int puzzleNumber, const wchar_t* saveFilePath)
 
         try
         {
-            success = Test(puzzle, grid, &cycleCount, &instructionCount, &nodeCount);
+            success = RunProgramAndTest(puzzle, grid, &cycleCount, &instructionCount, &nodeCount);
         }
         catch (std::exception ex)
         {
