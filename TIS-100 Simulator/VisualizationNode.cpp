@@ -28,6 +28,7 @@ void VisualizationNode::Initialize()
 {
     OutputBase::Initialize();
     Grid.Clear();
+    m_state = State::ReadX;
 }
 
 void VisualizationNode::ReadData(int value)
