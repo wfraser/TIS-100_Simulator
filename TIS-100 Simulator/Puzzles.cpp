@@ -65,14 +65,15 @@ Puzzle GetPuzzle(
 {
     Puzzle puzzle;
 
+    puzzle.visualizationHeight = VisualizationHeight;
+    puzzle.visualizationWidth = VisualizationWidth;
+
     switch (puzzleNumber)
     {
     case -3:
         puzzleName = "[simulator debug] Visualization Node Test";
         puzzle.badNodes = {};
         puzzle.visualization.push_back(Puzzle::IO{ 0, Neighbor::UP,{ 3,3,3,3,3 } });
-        puzzle.visualizationWidth = VisualizationWidth;
-        puzzle.visualizationHeight = VisualizationHeight;
         puzzle.programs[0] = "MOV 0,UP\nMOV 0,UP\nMOV 3,UP\nJRO -1";
         puzzle.programs[1] = "ADD 1";
         break;
