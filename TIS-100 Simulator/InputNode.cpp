@@ -23,6 +23,8 @@ void InputNode::SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO
 void InputNode::Initialize()
 {
     m_position = 0;
+    m_state = State::Ready;
+    m_spIO->CancelWrite(this);
 }
 
 void InputNode::Read()

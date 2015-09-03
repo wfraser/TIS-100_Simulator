@@ -535,6 +535,12 @@ void ComputeNode::Initialize()
     m_acc = 0;
     m_bak = 0;
     m_last = Target::None;
+
+    for (std::shared_ptr<IOChannel>& io : m_neighbors)
+    {
+        if (io != nullptr)
+            io->CancelWrite(this);
+    }
 }
 
 std::shared_ptr<IOChannel>& ComputeNode::IO(Target target)
