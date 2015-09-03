@@ -66,14 +66,16 @@ void ReadSaveFile(
     }
 }
 
-// Run the program in the given puzzle against the puzzle described in the same.
-// Returns true if the output matches the expected data. Returns false if the data does not match.
-// Stores program statistics in the remaining formal parameters:
-//  pNumCycles: number of cycles to program halt, either due to matching output data, or the first
-//              mismatch.
-//  pNodeCount: the number of ComputeNodes that were programmed with at least one instruction.
-//  pInstructionCount: the total number of instructions programmed into all ComputeNodes.
-bool TestPuzzle(
+// Run a TIS-100 program and test against desired output.
+//
+// Formal Parameters:
+//  puzzle: the puzzle to test.
+//  grid: assembled and programmed node grid corresponding to the puzzle.
+//  pCycleCount: receives the number of cycles the program ran for, either to successful
+//               completion, or until the first mismatched output value.
+//
+// Returns true if the program produced the desired output, or false if the output did not match.
+bool RunProgramAndTest(
     const Puzzle& puzzle,
     ComputeGrid<NodeGridHeight, NodeGridWidth>& grid,
     int* pCycleCount
@@ -123,7 +125,7 @@ int DoTest(int puzzleNumber, const wchar_t* saveFilePath)
 
         try
         {
-            success = TestPuzzle(puzzle, grid, &cycleCount);
+            success = RunProgramAndTest(puzzle, grid, &cycleCount);
         }
         catch (std::exception ex)
         {
