@@ -70,6 +70,7 @@
   <ItemGroup>
     <ClInclude Include="ComputeGrid.h" />
     <ClInclude Include="ComputeNode.h" />
+    <ClInclude Include="Constants.h" />
     <ClInclude Include="InputNode.h" />
     <ClInclude Include="IOChannel.h" />
     <ClInclude Include="OutputBase.h" />
@@ -90,6 +91,7 @@
     <ClCompile Include="OutputBase.cpp" />
     <ClCompile Include="OutputNode.cpp" />
     <ClCompile Include="pch.cpp" />
+    <ClCompile Include="Puzzles.cpp" />
     <ClCompile Include="StackMemoryNode.cpp" />
     <ClCompile Include="VisualizationNode.cpp" />
   </ItemGroup>

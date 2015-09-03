@@ -12,15 +12,13 @@ private:
     std::vector<OutputNode> m_outputNodes;
     std::vector<VisualizationNode> m_vizNodes;
 
-    std::vector<std::unique_ptr<INode>> m_grid;
+    std::unique_ptr<INode> m_grid[GridHeight * GridWidth];
 
     std::vector<INode*> m_allNodes;
 
 public:
     ComputeGrid(const PuzzleType& puzzle)
     {
-        m_grid.resize(GridHeight * GridWidth);
-
         for (int row = 0; row < GridHeight; ++row)
         {
             for (int col = 0; col < GridWidth; ++col)
@@ -74,6 +72,19 @@ public:
             m_vizNodes.emplace_back(puzzle.visualizationWidth, puzzle.visualizationHeight);
             INode* node = &m_vizNodes.back();
             INode::Join(m_grid[io.toNode].get(), io.direction, node);
+        }
+    }
+
+    void GetStats(int* pComputeNodeCount, int* pInstructionCount)
+    {
+        for (const ComputeNode* node : m_computeNodes)
+        {
+            int count = node->InstructionCount();
+            if (count > 0)
+            {
+                ++(*pComputeNodeCount);
+                *pInstructionCount += count;
+            }
         }
     }
 
@@ -144,7 +155,7 @@ public:
         }
     }
 
-    void Initialize(int* pInstructionCount, int* pComputeNodeCount)
+    void Initialize()
     {
         m_allNodes.clear();
 
@@ -168,14 +179,10 @@ public:
 
         for (ComputeNode* node : m_computeNodes)
         {
-            int instructions = node->InstructionCount();
-            if (instructions > 0)
+            if (node->InstructionCount() > 0)
             {
                 node->Initialize();
                 m_allNodes.push_back(node);
-
-                (*pInstructionCount) += instructions;
-                ++(*pComputeNodeCount);
             }
         }
 

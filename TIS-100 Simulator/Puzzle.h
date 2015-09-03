@@ -33,3 +33,8 @@ public:
     // Indices of stack memory nodes.
     std::set<int> stackNodes;
 };
+
+PuzzleBase<12> GetPuzzle(
+    int puzzleNumber,
+    std::string& puzzleName
+    );
