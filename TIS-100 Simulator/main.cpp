@@ -71,6 +71,7 @@ void ReadSaveFile(
 // Formal Parameters:
 //  puzzle: the puzzle to test.
 //  grid: assembled and programmed node grid corresponding to the puzzle.
+//  cycleLimit: if non-zero, the maximum number of cycles to execute before assuming failure.
 //  pCycleCount: receives the number of cycles the program ran for, either to successful
 //               completion, or until the first mismatched output value.
 //
@@ -78,6 +79,7 @@ void ReadSaveFile(
 bool RunProgramAndTest(
     const Puzzle& puzzle,
     ComputeGrid<NodeGridHeight, NodeGridWidth>& grid,
+    int cycleLimit,
     int* pCycleCount
     )
 {
@@ -87,6 +89,9 @@ bool RunProgramAndTest(
     while (!grid.IsFinished(puzzle, &isFailure))
     {
         ++(*pCycleCount);
+
+        if (*pCycleCount == cycleLimit)
+            return false;
 
 #ifdef DEBUG_OUTPUT
         printf("\t\t\t\t\t\t\tcycle %d\n", cycleCount);
@@ -98,7 +103,7 @@ bool RunProgramAndTest(
     return !isFailure;
 }
 
-int DoTest(int puzzleNumber, const wchar_t* saveFilePath)
+int DoTest(int puzzleNumber, const wchar_t* saveFilePath, int cycleLimit)
 {
     std::string puzzleName;
     Puzzle puzzle = GetPuzzle(puzzleNumber, puzzleName);
@@ -125,7 +130,7 @@ int DoTest(int puzzleNumber, const wchar_t* saveFilePath)
 
         try
         {
-            success = RunProgramAndTest(puzzle, grid, &cycleCount);
+            success = RunProgramAndTest(puzzle, grid, cycleLimit, &cycleCount);
         }
         catch (std::exception ex)
         {
@@ -162,7 +167,7 @@ int wmain(int argc, wchar_t** argv)
             if (*end == L'\0')
             {
                 std::wcout << L"Save file: " << saveFilename << std::endl;
-                DoTest(puzzleNumber, entry.c_str());
+                DoTest(puzzleNumber, entry.c_str(), static_cast<int>(1e5));
             }
         }
 
@@ -179,7 +184,7 @@ int wmain(int argc, wchar_t** argv)
         }
         saveFilePath = argv[2];
 
-        return DoTest(puzzleNumber, saveFilePath);
+        return DoTest(puzzleNumber, saveFilePath, 0 /* no limit */);
     }
     else
     {
