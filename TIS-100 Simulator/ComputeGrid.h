@@ -192,4 +192,12 @@ public:
             m_allNodes.push_back(node);
         }
     }
+
+    void ResetInputs(PuzzleType&& puzzle)
+    {
+        for (size_t i = 0, n = puzzle.inputs.size(); i < n; ++i)
+        {
+            m_inputNodes[i].SetData(std::move(puzzle.inputs[i].data));
+        }
+    }
 };

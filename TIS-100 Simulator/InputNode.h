@@ -20,6 +20,8 @@ private:
 public:
     InputNode(const std::vector<int>& data);
 
+    void SetData(std::vector<int>&& data);
+
     virtual void SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO);
     virtual void Initialize();
     virtual void Read();

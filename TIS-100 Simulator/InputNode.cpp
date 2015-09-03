@@ -9,6 +9,11 @@ InputNode::InputNode(const std::vector<int>& data)
     , m_state(State::Ready)
 {}
 
+void InputNode::SetData(std::vector<int>&& data)
+{
+    m_data = data;
+}
+
 void InputNode::SetNeighbor(Neighbor direction, std::shared_ptr<IOChannel>& spIO)
 {
     if ((m_spIO != nullptr) && (m_neighborDirection != direction))

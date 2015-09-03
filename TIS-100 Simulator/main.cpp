@@ -141,6 +141,17 @@ int DoTest(int puzzleNumber, const wchar_t* saveFilePath, int cycleLimit)
 
         std::cout << "\t" << (success ? "success" : "failure") << " in "
             << cycleCount << " cycles.\n";
+
+        if (testRun < 2)
+        {
+            // Generate a new set of inputs and outputs.
+            Puzzle p2 = GetPuzzle(puzzleNumber, puzzleName);
+            std::swap(puzzle.inputs, p2.inputs);
+            std::swap(puzzle.outputs, p2.outputs);
+            std::swap(puzzle.visualization, p2.visualization);
+
+            grid.ResetInputs(std::move(puzzle));
+        }
     }
 
     return 0;
