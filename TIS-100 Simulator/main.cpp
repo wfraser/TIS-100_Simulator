@@ -161,7 +161,7 @@ int wmain(int argc, wchar_t** argv)
 {
     if ((argc == 3) && (std::wstring(argv[1]) == L"all"))
     {
-        using namespace std::tr2::sys;
+        using namespace std::filesystem;
 
         for (const path& entry : directory_iterator(argv[2]))
         {
