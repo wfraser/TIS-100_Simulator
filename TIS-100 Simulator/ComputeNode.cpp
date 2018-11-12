@@ -359,149 +359,142 @@ void ComputeNode::Assemble(const std::string& assembly)
             throw std::exception(out.str().c_str());
         };
 
-        try
-        {
-            char c;
+        char c;
 
-            if (i < assembly.size())
+        if (i < assembly.size())
+        {
+            c = assembly[i];
+        }
+        else
+        {
+            c = '\0';
+            wordComplete = true;
+        }
+
+        if ((i > 0) && (assembly[i - 1] == '\n'))
+        {
+            column = 0;
+            line++;
+        }
+
+        column++;
+
+        if (inComment)
+        {
+            if (c == '\n')
+                inComment = false;
+            continue;
+        }
+        if (c == ' ' || c == '\n')
+        {
+            if (word.empty() || wordComplete)
             {
-                c = assembly[i];
+                continue;
             }
             else
             {
-                c = '\0';
                 wordComplete = true;
-            }
-
-            if ((i > 0) && (assembly[i - 1] == '\n'))
-            {
-                column = 0;
-                line++;
-            }
-
-            column++;
-
-            if (inComment)
-            {
                 if (c == '\n')
-                    inComment = false;
+                {
+                    instrComplete = true;
+                }
                 continue;
-            }
-            if (c == ' ' || c == '\n')
-            {
-                if (word.empty() || wordComplete)
-                {
-                    continue;
-                }
-                else
-                {
-                    wordComplete = true;
-                    if (c == '\n')
-                    {
-                        instrComplete = true;
-                    }
-                    continue;
-                }
-            }
-            else if (c == '#')
-            {
-                inComment = true;
-                wordComplete = true;
-                instrComplete = true;
-            }
-            else if ((c == ':') && (instr.op == Opcode::Indeterminate))
-            {
-                // label was defined
-                m_labels.emplace(word, m_instructions.size());
-                word.clear();
-                continue;
-            }
-            else if ((c == ',')
-                && IsTwoArgOpcode(instr.op)
-                && (instr.argsType == InstructionArgsType::Target)
-                && (instr.args.arg1.target == Target::None))
-            {
-                wordComplete = true;
-                continue;
-            }
-
-            if (wordComplete)
-            {
-                if (instr.op == Opcode::Indeterminate)
-                {
-                    if (!word.empty())
-                        ParseOpcode(word, &instr.op);
-                }
-                else if (IsOneArgOpcode(instr.op))
-                {
-                    if ((instr.argsType == InstructionArgsType::Target)
-                        && (instr.args.arg1.target == Target::None))
-                    {
-                        ParseTargetOrLiteral(word, &instr.args.arg1.target, &instr.args.arg1.immediate, &instr.argsType);
-                    }
-                    else
-                    {
-                        parse_error("instruction already has an arg1");
-                    }
-                }
-                else if (IsTwoArgOpcode(instr.op))
-                {
-                    if ((instr.argsType == InstructionArgsType::Target)
-                        && (instr.args.arg1.target == Target::None))
-                    {
-                        // The source can be a target or a literal.
-                        ParseTargetOrLiteral(word, &instr.args.arg1.target, &instr.args.arg1.immediate, &instr.argsType);
-                    }
-                    else if (instr.args.arg2 == Target::None)
-                    {
-                        // The destination can only be a target.
-                        ParseTarget(word, &instr.args.arg2);
-                    }
-                    else
-                    {
-                        parse_error("instruction already has an arg2");
-                    }
-                }
-                else if (IsJumpOpcode(instr.op))
-                {
-                    instr.argsType = InstructionArgsType::JumpTarget;
-                    ParseJumpTarget(std::move(word), instr.op, &instr.args.jumpTarget);
-                }
-                else
-                {
-                    parse_error("instruction does not take arguments");
-                }
-
-                word.clear();
-                wordComplete = false;
-            }
-
-            if (!inComment)
-            {
-                if ((c >= 'a' && c <= 'z')
-                    || ((c >= 'A' && c <= 'Z'))
-                    || ((c >= '0' && c <= '9'))
-                    || (c == '-'))
-                {
-                    word.push_back(c);
-                }
-                else if (c != '\0')
-                {
-                    parse_error("invalid character");
-                }
-            }
-
-            if (instrComplete)
-            {
-                if (instr.op != Opcode::Indeterminate)
-                    m_instructions.push_back(std::move(instr));
-                instr.Clear();
-                instrComplete = false;
             }
         }
-        catch (std::exception ex)
+        else if (c == '#')
         {
-            parse_error(ex.what());
+            inComment = true;
+            wordComplete = true;
+            instrComplete = true;
+        }
+        else if ((c == ':') && (instr.op == Opcode::Indeterminate))
+        {
+            // label was defined
+            m_labels.emplace(word, m_instructions.size());
+            word.clear();
+            continue;
+        }
+        else if ((c == ',')
+            && IsTwoArgOpcode(instr.op)
+            && (instr.argsType == InstructionArgsType::Target)
+            && (instr.args.arg1.target == Target::None))
+        {
+            wordComplete = true;
+            continue;
+        }
+
+        if (wordComplete)
+        {
+            if (instr.op == Opcode::Indeterminate)
+            {
+                if (!word.empty())
+                    ParseOpcode(word, &instr.op);
+            }
+            else if (IsOneArgOpcode(instr.op))
+            {
+                if ((instr.argsType == InstructionArgsType::Target)
+                    && (instr.args.arg1.target == Target::None))
+                {
+                    ParseTargetOrLiteral(word, &instr.args.arg1.target, &instr.args.arg1.immediate, &instr.argsType);
+                }
+                else
+                {
+                    parse_error("instruction already has an arg1");
+                }
+            }
+            else if (IsTwoArgOpcode(instr.op))
+            {
+                if ((instr.argsType == InstructionArgsType::Target)
+                    && (instr.args.arg1.target == Target::None))
+                {
+                    // The source can be a target or a literal.
+                    ParseTargetOrLiteral(word, &instr.args.arg1.target, &instr.args.arg1.immediate, &instr.argsType);
+                }
+                else if (instr.args.arg2 == Target::None)
+                {
+                    // The destination can only be a target.
+                    ParseTarget(word, &instr.args.arg2);
+                }
+                else
+                {
+                    parse_error("instruction already has an arg2");
+                }
+            }
+            else if (IsJumpOpcode(instr.op))
+            {
+                instr.argsType = InstructionArgsType::JumpTarget;
+                ParseJumpTarget(std::move(word), instr.op, &instr.args.jumpTarget);
+            }
+            else
+            {
+                parse_error("instruction does not take arguments");
+            }
+
+            word.clear();
+            wordComplete = false;
+        }
+
+        if (!inComment)
+        {
+            if ((c >= 'a' && c <= 'z')
+                || ((c >= 'A' && c <= 'Z'))
+                || ((c >= '0' && c <= '9'))
+                || (c == '-'))
+            {
+                word.push_back(c);
+            }
+            else if (c != '\0')
+            {
+                parse_error("invalid character");
+            }
+        }
+
+        if (instrComplete)
+        {
+            if (instr.op != Opcode::Indeterminate)
+                m_instructions.push_back(std::move(instr));
+            instr.Clear();
+            instrComplete = false;
         }
     }
 
