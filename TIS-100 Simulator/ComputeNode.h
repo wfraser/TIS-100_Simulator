@@ -113,6 +113,7 @@ private:
     Target m_last;
     std::vector<Instruction> m_instructions;
     std::unordered_map<std::string, size_t> m_labels;
+    std::vector<size_t> m_breakpoints;
     std::shared_ptr<IOChannel> m_neighbors[static_cast<size_t>(Neighbor::COUNT)];
 
 public:

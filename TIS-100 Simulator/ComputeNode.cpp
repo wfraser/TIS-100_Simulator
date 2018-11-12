@@ -422,6 +422,12 @@ void ComputeNode::Assemble(const std::string& assembly)
             wordComplete = true;
             continue;
         }
+        else if ((c == '!') && ((i == 0) || (assembly[i - 1] == '\n')))
+        {
+            // line that starts with a bang is a breakpoint
+            m_breakpoints.push_back(m_instructions.size() + 1);
+            continue;
+        }
 
         if (wordComplete)
         {
